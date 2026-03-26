@@ -745,9 +745,10 @@
             const watchCodes = new Set(watchlist.map(w => w.corp_code));
             let results = [];
 
-            // Strategy: if few companies, fetch per company; otherwise fetch all and filter
-            if (watchlist.length <= 5) {
-                const promises = watchlist.map(w =>
+            // 기업별로 개별 조회 (3개씩 병렬 처리)
+            for (let i = 0; i < watchlist.length; i += 3) {
+                const batch = watchlist.slice(i, i + 3);
+                const promises = batch.map(w =>
                     dartFetch('list.json', {
                         corp_code: w.corp_code,
                         bgn_de: bgnDe, end_de: endDe,
@@ -758,28 +759,6 @@
                 responses.forEach(data => {
                     if (data.list) results.push(...data.list);
                 });
-            } else {
-                // Fetch all and filter
-                for (let page = 1; page <= 5; page++) {
-                    const data = await dartFetch('list.json', {
-                        bgn_de: bgnDe, end_de: endDe,
-                        page_no: String(page), page_count: '100',
-                        sort: 'date', sort_mth: 'desc'
-                    });
-                    if (data.list) {
-                        results.push(...data.list.filter(d => watchCodes.has(d.corp_code)));
-                        // Update company cache
-                        data.list.forEach(item => {
-                            companyCache.set(item.corp_code, {
-                                corp_name: item.corp_name,
-                                stock_code: item.stock_code || '',
-                                corp_cls: item.corp_cls || ''
-                            });
-                        });
-                    }
-                    if (!data.list || data.list.length < 100) break;
-                    if (results.length > 200) break;
-                }
             }
 
             // De-duplicate by rcept_no
