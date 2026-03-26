@@ -374,6 +374,9 @@
 
         <main>
             <div class="filter-bar">
+                <select id="companyFilter" onchange="applyFilters()">
+                    <option value="">전체 종목</option>
+                </select>
                 <select id="typeFilter" onchange="applyFilters()">
                     <option value="">전체 공시</option>
                     <option value="A">정기공시</option>
@@ -695,6 +698,17 @@
 
     function saveWatchlist() {
         localStorage.setItem('dart_watchlist', JSON.stringify(watchlist));
+        updateCompanyFilter();
+    }
+
+    function updateCompanyFilter() {
+        const sel = document.getElementById('companyFilter');
+        const current = sel.value;
+        sel.innerHTML = '<option value="">전체 종목</option>';
+        watchlist.forEach(w => {
+            sel.innerHTML += `<option value="${w.corp_code}">${w.corp_name}</option>`;
+        });
+        sel.value = current;
     }
 
     function renderWatchlist() {
@@ -810,10 +824,12 @@
 
     // ── Filters & rendering ──
     function applyFilters() {
+        const companyF = document.getElementById('companyFilter').value;
         const typeF = document.getElementById('typeFilter').value;
         const marketF = document.getElementById('marketFilter').value;
 
         filteredDisclosures = allDisclosures.filter(d => {
+            if (companyF && d.corp_code !== companyF) return false;
             if (typeF && d.pblntf_ty !== typeF) return false;
             if (marketF && d.corp_cls !== marketF) return false;
             return true;
@@ -1058,6 +1074,7 @@
     // ── Init ──
     (async function init() {
         renderWatchlist();
+        updateCompanyFilter();
         requestNotifPermission();
 
         // 1) Vercel serverless proxy 감지
