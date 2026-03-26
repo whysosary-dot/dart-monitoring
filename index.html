@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DART 실시간 공시 모니터</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root {
             --bg-primary: #0a0f1a;
@@ -594,95 +593,23 @@
     }
 
     // ── Company DB (전체 상장기업 데이터베이스) ──
-    let corpDB = []; // [{corp_code, corp_name, stock_code}]
+    let corpDB = []; // [{c: corp_code, n: corp_name, s: stock_code}]
     let corpDBLoaded = false;
 
     async function loadCorpDB() {
-        // 1) localStorage 캐시 확인 (7일 유효)
+        // companies.json 파일에서 로드 (같은 서버에 있으므로 CORS 문제 없음)
         try {
-            const cached = localStorage.getItem('dart_corpdb');
-            const cachedTime = localStorage.getItem('dart_corpdb_time');
-            if (cached && cachedTime) {
-                const age = Date.now() - parseInt(cachedTime);
-                if (age < 7 * 24 * 60 * 60 * 1000) {
-                    corpDB = JSON.parse(cached);
-                    corpDBLoaded = true;
-                    console.log(`✅ 기업DB 캐시 로드: ${corpDB.length}개 기업`);
-                    return;
-                }
+            const res = await fetch('companies.json', { signal: AbortSignal.timeout(10000) });
+            if (res.ok) {
+                corpDB = await res.json();
+                corpDBLoaded = true;
+                console.log(`✅ 기업DB 로드 완료: ${corpDB.length}개 상장기업`);
+                return;
             }
-        } catch (e) {}
-
-        // 2) DART API에서 corpCode.xml (ZIP) 다운로드
-        console.log('📥 기업DB 다운로드 중...');
-        showToast('📥', '기업 데이터베이스 다운로드 중... (최초 1회)');
-
-        const zipUrl = `https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key=${API_KEY}`;
-        const proxies = [
-            url => url,
-            url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-            url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-        ];
-
-        // Vercel proxy
-        if (useVercelProxy) {
-            proxies.unshift(() => `/api/dart?endpoint=corpCode.xml`);
-        }
-
-        let zipData = null;
-        for (const proxy of proxies) {
-            try {
-                const res = await fetch(proxy(zipUrl), {
-                    signal: AbortSignal.timeout(30000)
-                });
-                if (res.ok) {
-                    zipData = await res.arrayBuffer();
-                    if (zipData.byteLength > 1000) break; // Valid ZIP
-                    zipData = null;
-                }
-            } catch (e) {
-                console.warn('corpCode download failed:', e.message);
-            }
-        }
-
-        if (!zipData) {
-            console.warn('기업DB 다운로드 실패');
-            showToast('⚠️', '기업DB 다운로드 실패. 종목코드로 직접 추가해 주세요.');
-            return;
-        }
-
-        // 3) ZIP 해제 & XML 파싱
-        try {
-            const zip = await JSZip.loadAsync(zipData);
-            const xmlFile = zip.file('CORPCODE.xml');
-            if (!xmlFile) throw new Error('CORPCODE.xml not found in ZIP');
-            const xmlText = await xmlFile.async('text');
-
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(xmlText, 'text/xml');
-            const items = doc.querySelectorAll('list');
-
-            corpDB = [];
-            items.forEach(item => {
-                const stockCode = item.querySelector('stock_code')?.textContent?.trim() || '';
-                if (!stockCode || stockCode === ' ') return; // 상장기업만
-                corpDB.push({
-                    corp_code: item.querySelector('corp_code')?.textContent?.trim() || '',
-                    corp_name: item.querySelector('corp_name')?.textContent?.trim() || '',
-                    stock_code: stockCode,
-                });
-            });
-
-            // localStorage에 캐시
-            localStorage.setItem('dart_corpdb', JSON.stringify(corpDB));
-            localStorage.setItem('dart_corpdb_time', String(Date.now()));
-            corpDBLoaded = true;
-            console.log(`✅ 기업DB 로드 완료: ${corpDB.length}개 상장기업`);
-            showToast('✅', `기업 데이터베이스 로드 완료 (${corpDB.length}개 기업)`);
         } catch (e) {
-            console.error('기업DB 파싱 실패:', e);
-            showToast('⚠️', '기업DB 파싱 실패. 종목코드로 직접 추가해 주세요.');
+            console.warn('companies.json 로드 실패:', e.message);
         }
+        showToast('⚠️', '기업DB 로드 실패. 종목코드로 직접 추가해 주세요.');
     }
 
     // ── Company search ──
@@ -708,22 +635,26 @@
         }
 
         // 로컬 DB에서 즉시 검색 (API 호출 없음!)
+        // JSON 포맷: {c: corp_code, n: corp_name, s: stock_code}
         const watchCodes = new Set(watchlist.map(w => w.corp_code));
         const matches = corpDB
-            .filter(c => c.corp_name.includes(query) && !watchCodes.has(c.corp_code))
+            .filter(c => c.n.includes(query) && !watchCodes.has(c.c))
             .slice(0, 15);
 
         if (matches.length === 0) {
             resultsEl.innerHTML = '<div class="search-empty">검색 결과가 없습니다.</div>';
         } else {
-            resultsEl.innerHTML = matches.map(m => `
-                <div class="search-item" onclick='addCompany(${JSON.stringify(m)})'>
+            resultsEl.innerHTML = matches.map(m => {
+                const company = { corp_code: m.c, corp_name: m.n, stock_code: m.s };
+                return `
+                <div class="search-item" onclick='addCompany(${JSON.stringify(company)})'>
                     <div>
-                        <div class="name">${esc(m.corp_name)}</div>
-                        <div class="code">${m.stock_code || m.corp_code}</div>
+                        <div class="name">${esc(m.n)}</div>
+                        <div class="code">${m.s}</div>
                     </div>
                     <span class="add-icon">+</span>
-                </div>`).join('');
+                </div>`;
+            }).join('');
         }
     }
 
