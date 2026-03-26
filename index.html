@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DART 실시간 공시 모니터</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root {
             --bg-primary: #0a0f1a;
@@ -592,6 +593,98 @@
         return yyyymmdd === kstDateStr(0);
     }
 
+    // ── Company DB (전체 상장기업 데이터베이스) ──
+    let corpDB = []; // [{corp_code, corp_name, stock_code}]
+    let corpDBLoaded = false;
+
+    async function loadCorpDB() {
+        // 1) localStorage 캐시 확인 (7일 유효)
+        try {
+            const cached = localStorage.getItem('dart_corpdb');
+            const cachedTime = localStorage.getItem('dart_corpdb_time');
+            if (cached && cachedTime) {
+                const age = Date.now() - parseInt(cachedTime);
+                if (age < 7 * 24 * 60 * 60 * 1000) {
+                    corpDB = JSON.parse(cached);
+                    corpDBLoaded = true;
+                    console.log(`✅ 기업DB 캐시 로드: ${corpDB.length}개 기업`);
+                    return;
+                }
+            }
+        } catch (e) {}
+
+        // 2) DART API에서 corpCode.xml (ZIP) 다운로드
+        console.log('📥 기업DB 다운로드 중...');
+        showToast('📥', '기업 데이터베이스 다운로드 중... (최초 1회)');
+
+        const zipUrl = `https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key=${API_KEY}`;
+        const proxies = [
+            url => url,
+            url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+            url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        ];
+
+        // Vercel proxy
+        if (useVercelProxy) {
+            proxies.unshift(() => `/api/dart?endpoint=corpCode.xml`);
+        }
+
+        let zipData = null;
+        for (const proxy of proxies) {
+            try {
+                const res = await fetch(proxy(zipUrl), {
+                    signal: AbortSignal.timeout(30000)
+                });
+                if (res.ok) {
+                    zipData = await res.arrayBuffer();
+                    if (zipData.byteLength > 1000) break; // Valid ZIP
+                    zipData = null;
+                }
+            } catch (e) {
+                console.warn('corpCode download failed:', e.message);
+            }
+        }
+
+        if (!zipData) {
+            console.warn('기업DB 다운로드 실패');
+            showToast('⚠️', '기업DB 다운로드 실패. 종목코드로 직접 추가해 주세요.');
+            return;
+        }
+
+        // 3) ZIP 해제 & XML 파싱
+        try {
+            const zip = await JSZip.loadAsync(zipData);
+            const xmlFile = zip.file('CORPCODE.xml');
+            if (!xmlFile) throw new Error('CORPCODE.xml not found in ZIP');
+            const xmlText = await xmlFile.async('text');
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(xmlText, 'text/xml');
+            const items = doc.querySelectorAll('list');
+
+            corpDB = [];
+            items.forEach(item => {
+                const stockCode = item.querySelector('stock_code')?.textContent?.trim() || '';
+                if (!stockCode || stockCode === ' ') return; // 상장기업만
+                corpDB.push({
+                    corp_code: item.querySelector('corp_code')?.textContent?.trim() || '',
+                    corp_name: item.querySelector('corp_name')?.textContent?.trim() || '',
+                    stock_code: stockCode,
+                });
+            });
+
+            // localStorage에 캐시
+            localStorage.setItem('dart_corpdb', JSON.stringify(corpDB));
+            localStorage.setItem('dart_corpdb_time', String(Date.now()));
+            corpDBLoaded = true;
+            console.log(`✅ 기업DB 로드 완료: ${corpDB.length}개 상장기업`);
+            showToast('✅', `기업 데이터베이스 로드 완료 (${corpDB.length}개 기업)`);
+        } catch (e) {
+            console.error('기업DB 파싱 실패:', e);
+            showToast('⚠️', '기업DB 파싱 실패. 종목코드로 직접 추가해 주세요.');
+        }
+    }
+
     // ── Company search ──
     let searchTimeout = null;
 
@@ -602,72 +695,35 @@
             document.getElementById('searchResults').classList.remove('show');
             return;
         }
-        searchTimeout = setTimeout(() => searchCompanies(q), 400);
+        searchTimeout = setTimeout(() => searchCompanies(q), 200);
     }
 
-    async function searchCompanies(query) {
+    function searchCompanies(query) {
         const resultsEl = document.getElementById('searchResults');
-        resultsEl.innerHTML = '<div class="search-loading"><div class="spinner" style="width:20px;height:20px;margin:0 auto;"></div><br>검색 중...</div>';
         resultsEl.classList.add('show');
 
-        try {
-            // Search from company cache first
-            let matches = [];
-            for (const [code, info] of companyCache) {
-                if (info.corp_name.includes(query)) {
-                    matches.push({ corp_code: code, ...info });
-                }
-            }
+        if (!corpDBLoaded) {
+            resultsEl.innerHTML = '<div class="search-loading">기업DB 로딩 중... 잠시 후 다시 시도하세요.</div>';
+            return;
+        }
 
-            // If not enough matches, fetch from API
-            if (matches.length < 5) {
-                const endDe = kstDateStr(0);
-                const bgnDe = kstDateStr(-90);
-                for (let page = 1; page <= 3; page++) {
-                    const data = await dartFetch('list.json', {
-                        bgn_de: bgnDe, end_de: endDe,
-                        page_no: String(page), page_count: '100'
-                    });
-                    if (data.list) {
-                        data.list.forEach(item => {
-                            companyCache.set(item.corp_code, {
-                                corp_name: item.corp_name,
-                                stock_code: item.stock_code || '',
-                                corp_cls: item.corp_cls || ''
-                            });
-                            if (item.corp_name.includes(query) &&
-                                !matches.find(m => m.corp_code === item.corp_code)) {
-                                matches.push({
-                                    corp_code: item.corp_code,
-                                    corp_name: item.corp_name,
-                                    stock_code: item.stock_code || '',
-                                    corp_cls: item.corp_cls || ''
-                                });
-                            }
-                        });
-                    }
-                    if (!data.list || data.list.length < 100) break;
-                }
-            }
+        // 로컬 DB에서 즉시 검색 (API 호출 없음!)
+        const watchCodes = new Set(watchlist.map(w => w.corp_code));
+        const matches = corpDB
+            .filter(c => c.corp_name.includes(query) && !watchCodes.has(c.corp_code))
+            .slice(0, 15);
 
-            // De-duplicate & filter already in watchlist
-            const watchCodes = new Set(watchlist.map(w => w.corp_code));
-            matches = matches.filter(m => !watchCodes.has(m.corp_code));
-
-            if (matches.length === 0) {
-                resultsEl.innerHTML = '<div class="search-empty">검색 결과가 없습니다.<br>종목코드로 직접 추가해 보세요.</div>';
-            } else {
-                resultsEl.innerHTML = matches.slice(0, 15).map(m => `
-                    <div class="search-item" onclick='addCompany(${JSON.stringify(m)})'>
-                        <div>
-                            <div class="name">${esc(m.corp_name)}</div>
-                            <div class="code">${m.stock_code || m.corp_code} · ${MARKET_LABELS[m.corp_cls] || ''}</div>
-                        </div>
-                        <span class="add-icon">+</span>
-                    </div>`).join('');
-            }
-        } catch (e) {
-            resultsEl.innerHTML = `<div class="search-empty">검색 오류: ${esc(e.message)}</div>`;
+        if (matches.length === 0) {
+            resultsEl.innerHTML = '<div class="search-empty">검색 결과가 없습니다.</div>';
+        } else {
+            resultsEl.innerHTML = matches.map(m => `
+                <div class="search-item" onclick='addCompany(${JSON.stringify(m)})'>
+                    <div>
+                        <div class="name">${esc(m.corp_name)}</div>
+                        <div class="code">${m.stock_code || m.corp_code}</div>
+                    </div>
+                    <span class="add-icon">+</span>
+                </div>`).join('');
         }
     }
 
@@ -1091,29 +1147,8 @@
             return;
         }
 
-        // 2) Initial load of company cache (background)
-        try {
-            const endDe = kstDateStr(0);
-            const bgnDe = kstDateStr(-30);
-            for (let page = 1; page <= 2; page++) {
-                const data = await dartFetch('list.json', {
-                    bgn_de: bgnDe, end_de: endDe,
-                    page_no: String(page), page_count: '100'
-                });
-                if (data.list) {
-                    data.list.forEach(item => {
-                        companyCache.set(item.corp_code, {
-                            corp_name: item.corp_name,
-                            stock_code: item.stock_code || '',
-                            corp_cls: item.corp_cls || ''
-                        });
-                    });
-                }
-                if (!data.list || data.list.length < 100) break;
-            }
-        } catch (e) {
-            console.warn('Company cache init failed:', e);
-        }
+        // 2) 전체 기업 DB 로드 (corpCode.xml → 상장기업 검색용)
+        await loadCorpDB();
 
         // 3) Fetch disclosures for watchlist
         await fetchDisclosures();
