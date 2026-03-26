@@ -6,23 +6,23 @@
     <title>DART 실시간 공시 모니터</title>
     <style>
         :root {
-            --bg-primary: #0a0f1a;
-            --bg-secondary: #111827;
-            --bg-card: #1a2332;
-            --bg-card-hover: #1f2b3d;
-            --bg-input: #0d1420;
-            --accent: #00d4aa;
-            --accent-dim: rgba(0,212,170,0.15);
-            --text-primary: #e8edf2;
-            --text-secondary: #8899aa;
-            --text-muted: #556677;
-            --border: #1e2d3d;
-            --danger: #ff6b6b;
-            --warning: #ffd43b;
-            --blue: #4a9eff;
-            --purple: #cc5de8;
-            --green: #51cf66;
-            --orange: #fd7e14;
+            --bg-primary: #f5f7fa;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f0f4f8;
+            --bg-input: #f0f2f5;
+            --accent: #2563eb;
+            --accent-dim: rgba(37,99,235,0.08);
+            --text-primary: #1a1a2e;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --border: #e2e8f0;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --blue: #3b82f6;
+            --purple: #8b5cf6;
+            --green: #22c55e;
+            --orange: #f97316;
             --sidebar-w: 320px;
             --header-h: 60px;
         }
@@ -43,6 +43,7 @@
             display: flex; align-items: center; justify-content: space-between;
             padding: 0 20px;
             backdrop-filter: blur(10px);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
         .header-left { display:flex; align-items:center; gap:12px; }
         .header-left h1 { font-size:18px; font-weight:700; letter-spacing:-0.3px; }
@@ -66,9 +67,9 @@
         }
         .btn:hover { background:var(--bg-card-hover); border-color:var(--accent); }
         .btn-accent {
-            background:var(--accent); color:#000; border-color:var(--accent); font-weight:600;
+            background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600;
         }
-        .btn-accent:hover { background:#00e6b8; }
+        .btn-accent:hover { background:#1d4ed8; }
         .btn-sm { padding:5px 10px; font-size:12px; }
 
         /* Layout */
@@ -108,7 +109,7 @@
             position:absolute; top:calc(100% + 4px); left:0; right:0;
             background:var(--bg-card); border:1px solid var(--border);
             border-radius:10px; max-height:240px; overflow-y:auto;
-            display:none; z-index:50; box-shadow:0 8px 24px rgba(0,0,0,0.4);
+            display:none; z-index:50; box-shadow:0 8px 24px rgba(0,0,0,0.1);
         }
         #searchResults.show { display:block; }
         .search-item {
@@ -188,6 +189,7 @@
             background:var(--bg-card); border:1px solid var(--border);
             border-radius:12px; padding:16px; margin-bottom:10px;
             transition:all 0.2s; cursor:pointer; position:relative;
+            box-shadow:0 1px 3px rgba(0,0,0,0.04);
         }
         .disclosure-card:hover {
             border-color:var(--accent); background:var(--bg-card-hover);
@@ -215,7 +217,7 @@
         .dc-company { font-size:13px; color:var(--accent); font-weight:500; }
         .dc-meta { font-size:12px; color:var(--text-muted); display:flex; gap:10px; }
         .new-badge {
-            background:var(--accent); color:#000; font-size:10px; font-weight:700;
+            background:var(--accent); color:#fff; font-size:10px; font-weight:700;
             padding:2px 6px; border-radius:4px; animation:pulse 2s infinite;
         }
         @keyframes pulse {
@@ -223,16 +225,16 @@
         }
 
         /* Type badge colors */
-        .badge-A { background:rgba(74,158,255,0.15); color:#4a9eff; }
-        .badge-B { background:rgba(255,107,107,0.15); color:#ff6b6b; }
-        .badge-C { background:rgba(81,207,102,0.15); color:#51cf66; }
-        .badge-D { background:rgba(204,93,232,0.15); color:#cc5de8; }
-        .badge-E { background:rgba(134,142,150,0.15); color:#868e96; }
-        .badge-F { background:rgba(255,212,59,0.15); color:#ffd43b; }
-        .badge-G { background:rgba(32,201,151,0.15); color:#20c997; }
-        .badge-H { background:rgba(253,126,20,0.15); color:#fd7e14; }
-        .badge-I { background:rgba(51,154,240,0.15); color:#339af0; }
-        .badge-J { background:rgba(229,153,247,0.15); color:#e599f7; }
+        .badge-A { background:#eff6ff; color:#2563eb; }
+        .badge-B { background:#fef2f2; color:#dc2626; }
+        .badge-C { background:#f0fdf4; color:#16a34a; }
+        .badge-D { background:#faf5ff; color:#7c3aed; }
+        .badge-E { background:#f8fafc; color:#64748b; }
+        .badge-F { background:#fffbeb; color:#d97706; }
+        .badge-G { background:#f0fdfa; color:#0d9488; }
+        .badge-H { background:#fff7ed; color:#ea580c; }
+        .badge-I { background:#eff6ff; color:#2563eb; }
+        .badge-J { background:#fdf4ff; color:#a855f7; }
         .badge-market-Y { border-left:3px solid var(--blue); }
         .badge-market-K { border-left:3px solid var(--orange); }
 
@@ -255,7 +257,7 @@
         /* Settings modal */
         .modal-overlay {
             position:fixed; top:0; left:0; right:0; bottom:0;
-            background:rgba(0,0,0,0.6); z-index:200; display:none;
+            background:rgba(0,0,0,0.25); z-index:200; display:none;
             align-items:center; justify-content:center; padding:20px;
             backdrop-filter:blur(4px);
         }
@@ -287,9 +289,9 @@
             z-index:300; display:flex; flex-direction:column; gap:8px;
         }
         .toast {
-            background:var(--bg-card); border:1px solid var(--accent);
+            background:var(--bg-card); border:1px solid var(--border);
             border-radius:10px; padding:12px 16px; min-width:280px;
-            box-shadow:0 8px 24px rgba(0,0,0,0.4);
+            box-shadow:0 8px 24px rgba(0,0,0,0.1);
             animation:slideIn 0.3s ease-out;
             display:flex; align-items:center; gap:10px;
         }
@@ -312,12 +314,12 @@
             aside {
                 position:fixed; left:-100%; top:var(--header-h); bottom:0;
                 width:85%; max-width:340px; z-index:150;
-                transition:left 0.3s ease; box-shadow:4px 0 20px rgba(0,0,0,0.5);
+                transition:left 0.3s ease; box-shadow:4px 0 20px rgba(0,0,0,0.1);
             }
             aside.open { left:0; }
             .sidebar-overlay {
                 position:fixed; top:var(--header-h); left:0; right:0; bottom:0;
-                background:rgba(0,0,0,0.5); z-index:140; display:none;
+                background:rgba(0,0,0,0.2); z-index:140; display:none;
             }
             .sidebar-overlay.show { display:block; }
             main { padding:12px; }
@@ -333,8 +335,8 @@
         /* Scrollbar */
         ::-webkit-scrollbar { width:6px; }
         ::-webkit-scrollbar-track { background:transparent; }
-        ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
-        ::-webkit-scrollbar-thumb:hover { background:var(--text-muted); }
+        ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+        ::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
     </style>
 </head>
 <body>
