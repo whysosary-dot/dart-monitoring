@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DART 실시간 공시 모니터</title>
+    <style>
+        :root {
+            --bg-primary: #0a0f1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2332;
+            --bg-card-hover: #1f2b3d;
+            --bg-input: #0d1420;
+            --accent: #00d4aa;
+            --accent-dim: rgba(0,212,170,0.15);
+            --text-primary: #e8edf2;
+            --text-secondary: #8899aa;
+            --text-muted: #556677;
+            --border: #1e2d3d;
+            --danger: #ff6b6b;
+            --warning: #ffd43b;
+            --blue: #4a9eff;
+            --purple: #cc5de8;
+            --green: #51cf66;
+            --orange: #fd7e14;
+            --sidebar-w: 320px;
+            --header-h: 60px;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        /* Header */
+        header {
+            position: fixed; top:0; left:0; right:0; z-index:100;
+            height: var(--header-h);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 20px;
+            backdrop-filter: blur(10px);
+        }
+        .header-left { display:flex; align-items:center; gap:12px; }
+        .header-left h1 { font-size:18px; font-weight:700; letter-spacing:-0.3px; }
+        .header-left h1 span { color:var(--accent); }
+        #menuBtn {
+            display:none; background:none; border:none; color:var(--text-primary);
+            font-size:24px; cursor:pointer; padding:4px 8px;
+        }
+        .header-right { display:flex; align-items:center; gap:12px; }
+        #statusDot {
+            width:8px; height:8px; border-radius:50%;
+            background:#555; transition: background 0.3s;
+        }
+        #statusDot.active { background:var(--accent); box-shadow:0 0 8px var(--accent); }
+        #statusDot.error { background:var(--danger); box-shadow:0 0 8px var(--danger); }
+        #lastUpdate { font-size:12px; color:var(--text-muted); }
+        .btn {
+            padding:8px 14px; border-radius:8px; border:1px solid var(--border);
+            background:var(--bg-card); color:var(--text-primary); cursor:pointer;
+            font-size:13px; transition:all 0.2s; display:flex; align-items:center; gap:6px;
+        }
+        .btn:hover { background:var(--bg-card-hover); border-color:var(--accent); }
+        .btn-accent {
+            background:var(--accent); color:#000; border-color:var(--accent); font-weight:600;
+        }
+        .btn-accent:hover { background:#00e6b8; }
+        .btn-sm { padding:5px 10px; font-size:12px; }
+
+        /* Layout */
+        .layout {
+            display:flex; margin-top:var(--header-h); min-height:calc(100vh - var(--header-h));
+        }
+        aside {
+            width:var(--sidebar-w); min-width:var(--sidebar-w);
+            background:var(--bg-secondary);
+            border-right:1px solid var(--border);
+            padding:16px; overflow-y:auto;
+            height:calc(100vh - var(--header-h));
+            position:sticky; top:var(--header-h);
+        }
+        main {
+            flex:1; padding:20px; overflow-y:auto;
+            max-width:900px;
+        }
+
+        /* Search */
+        .search-box {
+            position:relative; margin-bottom:16px;
+        }
+        .search-box input {
+            width:100%; padding:10px 14px 10px 36px;
+            background:var(--bg-input); border:1px solid var(--border);
+            border-radius:10px; color:var(--text-primary);
+            font-size:14px; outline:none; transition:border 0.2s;
+        }
+        .search-box input:focus { border-color:var(--accent); }
+        .search-box input::placeholder { color:var(--text-muted); }
+        .search-icon {
+            position:absolute; left:12px; top:50%; transform:translateY(-50%);
+            color:var(--text-muted); font-size:14px; pointer-events:none;
+        }
+        #searchResults {
+            position:absolute; top:calc(100% + 4px); left:0; right:0;
+            background:var(--bg-card); border:1px solid var(--border);
+            border-radius:10px; max-height:240px; overflow-y:auto;
+            display:none; z-index:50; box-shadow:0 8px 24px rgba(0,0,0,0.4);
+        }
+        #searchResults.show { display:block; }
+        .search-item {
+            padding:10px 14px; cursor:pointer; display:flex;
+            justify-content:space-between; align-items:center;
+            border-bottom:1px solid var(--border); transition:background 0.15s;
+        }
+        .search-item:last-child { border-bottom:none; }
+        .search-item:hover { background:var(--accent-dim); }
+        .search-item .name { font-size:14px; font-weight:500; }
+        .search-item .code { font-size:11px; color:var(--text-muted); }
+        .search-item .add-icon { color:var(--accent); font-size:18px; font-weight:bold; }
+        .search-loading, .search-empty {
+            padding:16px; text-align:center; color:var(--text-muted); font-size:13px;
+        }
+
+        /* Manual add */
+        .manual-add {
+            margin-bottom:20px; padding:12px; background:var(--bg-card);
+            border-radius:10px; border:1px solid var(--border);
+        }
+        .manual-add summary {
+            cursor:pointer; font-size:13px; color:var(--text-secondary);
+            user-select:none;
+        }
+        .manual-add .fields {
+            display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;
+        }
+        .manual-add input {
+            flex:1; min-width:80px; padding:8px 10px;
+            background:var(--bg-input); border:1px solid var(--border);
+            border-radius:8px; color:var(--text-primary); font-size:13px; outline:none;
+        }
+        .manual-add input:focus { border-color:var(--accent); }
+
+        /* Watchlist */
+        .section-title {
+            font-size:13px; font-weight:600; color:var(--text-secondary);
+            text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px;
+        }
+        .watchlist-item {
+            display:flex; justify-content:space-between; align-items:center;
+            padding:10px 12px; background:var(--bg-card); border-radius:8px;
+            margin-bottom:6px; border:1px solid transparent; transition:all 0.2s;
+        }
+        .watchlist-item:hover { border-color:var(--border); }
+        .watchlist-item .info .name { font-size:14px; font-weight:500; }
+        .watchlist-item .info .meta {
+            font-size:11px; color:var(--text-muted); margin-top:2px;
+        }
+        .watchlist-item .remove {
+            background:none; border:none; color:var(--text-muted);
+            cursor:pointer; font-size:16px; padding:4px; border-radius:4px;
+            transition:all 0.2s;
+        }
+        .watchlist-item .remove:hover { color:var(--danger); background:rgba(255,107,107,0.1); }
+        .watchlist-empty {
+            padding:20px; text-align:center; color:var(--text-muted); font-size:13px;
+        }
+
+        /* Filters */
+        .filter-bar {
+            display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;
+        }
+        .filter-bar select, .filter-bar input[type="date"] {
+            padding:8px 12px; background:var(--bg-card); border:1px solid var(--border);
+            border-radius:8px; color:var(--text-primary); font-size:13px;
+            outline:none; cursor:pointer;
+        }
+        .filter-bar select:focus, .filter-bar input[type="date"]:focus { border-color:var(--accent); }
+        .filter-count {
+            font-size:12px; color:var(--text-muted); margin-left:auto;
+        }
+
+        /* Disclosure cards */
+        .disclosure-card {
+            background:var(--bg-card); border:1px solid var(--border);
+            border-radius:12px; padding:16px; margin-bottom:10px;
+            transition:all 0.2s; cursor:pointer; position:relative;
+        }
+        .disclosure-card:hover {
+            border-color:var(--accent); background:var(--bg-card-hover);
+            transform:translateX(2px);
+        }
+        .disclosure-card.is-new {
+            border-left:3px solid var(--accent);
+        }
+        .dc-top {
+            display:flex; justify-content:space-between; align-items:flex-start;
+            margin-bottom:8px; gap:10px;
+        }
+        .dc-title {
+            font-size:14px; font-weight:500; line-height:1.4;
+            flex:1; word-break:keep-all;
+        }
+        .dc-badge {
+            padding:3px 8px; border-radius:6px; font-size:11px;
+            font-weight:600; white-space:nowrap; flex-shrink:0;
+        }
+        .dc-bottom {
+            display:flex; justify-content:space-between; align-items:center;
+            flex-wrap:wrap; gap:6px;
+        }
+        .dc-company { font-size:13px; color:var(--accent); font-weight:500; }
+        .dc-meta { font-size:12px; color:var(--text-muted); display:flex; gap:10px; }
+        .new-badge {
+            background:var(--accent); color:#000; font-size:10px; font-weight:700;
+            padding:2px 6px; border-radius:4px; animation:pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%,100% { opacity:1; } 50% { opacity:0.6; }
+        }
+
+        /* Type badge colors */
+        .badge-A { background:rgba(74,158,255,0.15); color:#4a9eff; }
+        .badge-B { background:rgba(255,107,107,0.15); color:#ff6b6b; }
+        .badge-C { background:rgba(81,207,102,0.15); color:#51cf66; }
+        .badge-D { background:rgba(204,93,232,0.15); color:#cc5de8; }
+        .badge-E { background:rgba(134,142,150,0.15); color:#868e96; }
+        .badge-F { background:rgba(255,212,59,0.15); color:#ffd43b; }
+        .badge-G { background:rgba(32,201,151,0.15); color:#20c997; }
+        .badge-H { background:rgba(253,126,20,0.15); color:#fd7e14; }
+        .badge-I { background:rgba(51,154,240,0.15); color:#339af0; }
+        .badge-J { background:rgba(229,153,247,0.15); color:#e599f7; }
+        .badge-market-Y { border-left:3px solid var(--blue); }
+        .badge-market-K { border-left:3px solid var(--orange); }
+
+        /* Loading & Empty */
+        .loading-spinner {
+            display:flex; justify-content:center; padding:40px;
+        }
+        .spinner {
+            width:32px; height:32px; border:3px solid var(--border);
+            border-top-color:var(--accent); border-radius:50%;
+            animation:spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .empty-state {
+            text-align:center; padding:60px 20px; color:var(--text-muted);
+        }
+        .empty-state .icon { font-size:48px; margin-bottom:16px; opacity:0.4; }
+        .empty-state p { font-size:14px; line-height:1.6; }
+
+        /* Settings modal */
+        .modal-overlay {
+            position:fixed; top:0; left:0; right:0; bottom:0;
+            background:rgba(0,0,0,0.6); z-index:200; display:none;
+            align-items:center; justify-content:center; padding:20px;
+            backdrop-filter:blur(4px);
+        }
+        .modal-overlay.show { display:flex; }
+        .modal {
+            background:var(--bg-secondary); border:1px solid var(--border);
+            border-radius:16px; padding:24px; width:100%; max-width:440px;
+            max-height:80vh; overflow-y:auto;
+        }
+        .modal h2 { font-size:18px; margin-bottom:20px; }
+        .form-group { margin-bottom:16px; }
+        .form-group label {
+            display:block; font-size:13px; color:var(--text-secondary);
+            margin-bottom:6px; font-weight:500;
+        }
+        .form-group input, .form-group select {
+            width:100%; padding:10px 12px;
+            background:var(--bg-input); border:1px solid var(--border);
+            border-radius:8px; color:var(--text-primary); font-size:14px; outline:none;
+        }
+        .form-group input:focus, .form-group select:focus { border-color:var(--accent); }
+        .modal-actions {
+            display:flex; gap:10px; justify-content:flex-end; margin-top:20px;
+        }
+
+        /* Toast */
+        #toastContainer {
+            position:fixed; top:calc(var(--header-h) + 12px); right:16px;
+            z-index:300; display:flex; flex-direction:column; gap:8px;
+        }
+        .toast {
+            background:var(--bg-card); border:1px solid var(--accent);
+            border-radius:10px; padding:12px 16px; min-width:280px;
+            box-shadow:0 8px 24px rgba(0,0,0,0.4);
+            animation:slideIn 0.3s ease-out;
+            display:flex; align-items:center; gap:10px;
+        }
+        .toast .icon { font-size:18px; }
+        .toast .msg { font-size:13px; flex:1; }
+        @keyframes slideIn {
+            from { transform:translateX(100%); opacity:0; }
+            to { transform:translateX(0); opacity:1; }
+        }
+
+        /* Pagination */
+        .pagination {
+            display:flex; justify-content:center; align-items:center;
+            gap:8px; margin-top:20px; padding:10px 0;
+        }
+
+        /* Mobile responsive */
+        @media (max-width:768px) {
+            #menuBtn { display:block; }
+            aside {
+                position:fixed; left:-100%; top:var(--header-h); bottom:0;
+                width:85%; max-width:340px; z-index:150;
+                transition:left 0.3s ease; box-shadow:4px 0 20px rgba(0,0,0,0.5);
+            }
+            aside.open { left:0; }
+            .sidebar-overlay {
+                position:fixed; top:var(--header-h); left:0; right:0; bottom:0;
+                background:rgba(0,0,0,0.5); z-index:140; display:none;
+            }
+            .sidebar-overlay.show { display:block; }
+            main { padding:12px; }
+            .dc-top { flex-direction:column; }
+            .filter-bar { gap:6px; }
+            .filter-bar select { font-size:12px; padding:6px 8px; flex:1; min-width:0; }
+        }
+        @media (min-width:769px) and (max-width:1024px) {
+            aside { width:280px; min-width:280px; }
+            main { padding:16px; }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width:6px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+        ::-webkit-scrollbar-thumb:hover { background:var(--text-muted); }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <button id="menuBtn" onclick="toggleSidebar()">☰</button>
+            <h1><span>DART</span> 공시 모니터</h1>
+        </div>
+        <div class="header-right">
+            <div id="statusDot"></div>
+            <span id="lastUpdate">—</span>
+            <button class="btn btn-sm" onclick="refreshNow()">↻ 새로고침</button>
+            <button class="btn btn-sm" onclick="openSettings()">⚙</button>
+        </div>
+    </header>
+
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <div class="layout">
+        <aside id="sidebar">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input id="searchInput" placeholder="기업명 검색 (2글자 이상)..." oninput="onSearchInput(this.value)">
+                <div id="searchResults"></div>
+            </div>
+            <details class="manual-add">
+                <summary>종목코드로 직접 추가</summary>
+                <div class="fields">
+                    <input id="manualCode" placeholder="종목코드 (예: 005930)">
+                    <input id="manualName" placeholder="기업명">
+                    <button class="btn btn-accent btn-sm" onclick="addManual()">추가</button>
+                </div>
+            </details>
+            <div class="section-title">관심 기업 (<span id="watchCount">0</span>)</div>
+            <div id="watchlist"></div>
+        </aside>
+
+        <main>
+            <div class="filter-bar">
+                <select id="typeFilter" onchange="applyFilters()">
+                    <option value="">전체 공시</option>
+                    <option value="A">정기공시</option>
+                    <option value="B">주요사항보고</option>
+                    <option value="C">발행공시</option>
+                    <option value="D">지분공시</option>
+                    <option value="E">기타공시</option>
+                    <option value="F">외부감사관련</option>
+                    <option value="G">펀드공시</option>
+                    <option value="H">자산유동화</option>
+                    <option value="I">거래소공시</option>
+                    <option value="J">공정위공시</option>
+                </select>
+                <select id="marketFilter" onchange="applyFilters()">
+                    <option value="">전체 시장</option>
+                    <option value="Y">유가증권(KOSPI)</option>
+                    <option value="K">코스닥(KOSDAQ)</option>
+                    <option value="N">코넥스</option>
+                    <option value="E">기타</option>
+                </select>
+                <span class="filter-count" id="filterCount"></span>
+            </div>
+            <div id="disclosureList">
+                <div class="empty-state">
+                    <div class="icon">📋</div>
+                    <p>왼쪽에서 관심 기업을 추가하면<br>공시 정보가 여기에 표시됩니다.</p>
+                </div>
+            </div>
+            <div class="pagination" id="pagination"></div>
+        </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <h2>⚙ 설정</h2>
+            <div class="form-group">
+                <label>DART API 키</label>
+                <input id="apiKeyInput" type="text" placeholder="API 키를 입력하세요">
+            </div>
+            <div class="form-group">
+                <label>자동 갱신 주기</label>
+                <select id="intervalSelect">
+                    <option value="60000">1분</option>
+                    <option value="180000">3분</option>
+                    <option value="300000" selected>5분</option>
+                    <option value="600000">10분</option>
+                    <option value="0">수동 새로고침만</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>조회 기간 (일)</label>
+                <select id="dateRangeSelect">
+                    <option value="1">오늘</option>
+                    <option value="7" selected>최근 7일</option>
+                    <option value="30">최근 30일</option>
+                    <option value="90">최근 90일</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="notifyCheck" checked>
+                    새 공시 브라우저 알림 받기
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="soundCheck">
+                    새 공시 알림 소리
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeSettings()">취소</button>
+                <button class="btn btn-accent" onclick="saveSettings()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toastContainer"></div>
+
+    <script>
+    /* ============================================================
+       DART 실시간 공시 모니터
+       ============================================================ */
+
+    // ── State ──
+    // Vercel 배포 시 API 키는 서버 환경변수(DART_API_KEY)에서 관리됩니다.
+    // 로컬 사용 시 설정에서 직접 입력하세요.
+    let API_KEY = localStorage.getItem('dart_api_key') || '';
+    let useVercelProxy = false; // Vercel serverless proxy 감지 여부
+    let watchlist = JSON.parse(localStorage.getItem('dart_watchlist') || '[]');
+    let companyCache = new Map(); // corp_code -> {corp_name, stock_code, corp_cls}
+    let allDisclosures = [];
+    let filteredDisclosures = [];
+    let seenRceptNos = new Set(JSON.parse(localStorage.getItem('dart_seen') || '[]'));
+    let refreshInterval = parseInt(localStorage.getItem('dart_interval') || '300000');
+    let dateRange = parseInt(localStorage.getItem('dart_daterange') || '7');
+    let timerId = null;
+    let currentPage = 1;
+    const PAGE_SIZE = 30;
+    let isFirstLoad = true;
+
+    // ── Type labels ──
+    const TYPE_LABELS = {
+        A:'정기공시', B:'주요사항보고', C:'발행공시', D:'지분공시',
+        E:'기타공시', F:'외부감사관련', G:'펀드공시', H:'자산유동화',
+        I:'거래소공시', J:'공정위공시'
+    };
+    const MARKET_LABELS = { Y:'유가', K:'코스닥', N:'코넥스', E:'기타' };
+
+    // ── CORS Fetch ──
+    const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    // Vercel serverless proxy 감지 (페이지 로드 시 한 번 체크)
+    async function detectVercelProxy() {
+        try {
+            const res = await fetch('/api/dart?endpoint=list.json&bgn_de=20240101&end_de=20240101&page_count=1', {
+                signal: AbortSignal.timeout(5000)
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.status === '000' || data.status === '013') {
+                    useVercelProxy = true;
+                    console.log('✅ Vercel 프록시 감지됨 - API 키 서버사이드 관리');
+                    return true;
+                }
+            }
+        } catch (e) {}
+        return false;
+    }
+
+    async function dartFetch(endpoint, params = {}) {
+        // 1) Vercel serverless proxy (API 키가 서버에 있음)
+        if (useVercelProxy) {
+            try {
+                const sp = new URLSearchParams({ endpoint, ...params });
+                const res = await fetch(`/api/dart?${sp.toString()}`, { signal: AbortSignal.timeout(12000) });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === '000') return data;
+                    if (data.status === '013') return { ...data, list: [] };
+                    if (data.message) console.warn('DART:', data.message);
+                    return data;
+                }
+            } catch (e) {
+                console.warn('Vercel proxy failed:', e.message);
+            }
+        }
+
+        // 2) Local server proxy (dart_server.py)
+        if (IS_LOCAL) {
+            try {
+                const sp = new URLSearchParams({ crtfc_key: API_KEY, ...params });
+                const res = await fetch(`/dart-api/${endpoint}?${sp.toString()}`, { signal: AbortSignal.timeout(12000) });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === '000') return data;
+                    if (data.status === '013') return { ...data, list: [] };
+                    return data;
+                }
+            } catch (e) {
+                console.warn('Local proxy failed:', e.message);
+            }
+        }
+
+        // 3) CORS proxies (API 키 필요)
+        if (!API_KEY) {
+            throw new Error('API 키가 필요합니다. ⚙ 설정에서 DART API 키를 입력하세요.');
+        }
+
+        const base = 'https://opendart.fss.or.kr/api/';
+        const url = new URL(base + endpoint);
+        url.searchParams.set('crtfc_key', API_KEY);
+        Object.entries(params).forEach(([k, v]) => { if(v) url.searchParams.set(k, v); });
+        const targetUrl = url.toString();
+
+        const corsProxies = [
+            u => u,
+            u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+            u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+        ];
+
+        for (const proxy of corsProxies) {
+            try {
+                const res = await fetch(proxy(targetUrl), { signal: AbortSignal.timeout(12000) });
+                if (!res.ok) continue;
+                const data = await res.json();
+                if (data.status === '000') return data;
+                if (data.status === '013') return { ...data, list: [] };
+                if (data.message) console.warn('DART:', data.message);
+                return data;
+            } catch (e) {
+                console.warn('CORS proxy failed:', e.message);
+                continue;
+            }
+        }
+        throw new Error('API 요청 실패. 설정에서 API 키를 확인하세요.');
+    }
+
+    // ── Date helpers ──
+    function kstDateStr(offsetDays = 0) {
+        const d = new Date();
+        d.setDate(d.getDate() + offsetDays);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}${m}${dd}`;
+    }
+
+    function formatDate(yyyymmdd) {
+        if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd;
+        return `${yyyymmdd.slice(0,4)}.${yyyymmdd.slice(4,6)}.${yyyymmdd.slice(6,8)}`;
+    }
+
+    function isToday(yyyymmdd) {
+        return yyyymmdd === kstDateStr(0);
+    }
+
+    // ── Company search ──
+    let searchTimeout = null;
+
+    function onSearchInput(val) {
+        clearTimeout(searchTimeout);
+        const q = val.trim();
+        if (q.length < 2) {
+            document.getElementById('searchResults').classList.remove('show');
+            return;
+        }
+        searchTimeout = setTimeout(() => searchCompanies(q), 400);
+    }
+
+    async function searchCompanies(query) {
+        const resultsEl = document.getElementById('searchResults');
+        resultsEl.innerHTML = '<div class="search-loading"><div class="spinner" style="width:20px;height:20px;margin:0 auto;"></div><br>검색 중...</div>';
+        resultsEl.classList.add('show');
+
+        try {
+            // Search from company cache first
+            let matches = [];
+            for (const [code, info] of companyCache) {
+                if (info.corp_name.includes(query)) {
+                    matches.push({ corp_code: code, ...info });
+                }
+            }
+
+            // If not enough matches, fetch from API
+            if (matches.length < 5) {
+                const endDe = kstDateStr(0);
+                const bgnDe = kstDateStr(-90);
+                for (let page = 1; page <= 3; page++) {
+                    const data = await dartFetch('list.json', {
+                        bgn_de: bgnDe, end_de: endDe,
+                        page_no: String(page), page_count: '100'
+                    });
+                    if (data.list) {
+                        data.list.forEach(item => {
+                            companyCache.set(item.corp_code, {
+                                corp_name: item.corp_name,
+                                stock_code: item.stock_code || '',
+                                corp_cls: item.corp_cls || ''
+                            });
+                            if (item.corp_name.includes(query) &&
+                                !matches.find(m => m.corp_code === item.corp_code)) {
+                                matches.push({
+                                    corp_code: item.corp_code,
+                                    corp_name: item.corp_name,
+                                    stock_code: item.stock_code || '',
+                                    corp_cls: item.corp_cls || ''
+                                });
+                            }
+                        });
+                    }
+                    if (!data.list || data.list.length < 100) break;
+                }
+            }
+
+            // De-duplicate & filter already in watchlist
+            const watchCodes = new Set(watchlist.map(w => w.corp_code));
+            matches = matches.filter(m => !watchCodes.has(m.corp_code));
+
+            if (matches.length === 0) {
+                resultsEl.innerHTML = '<div class="search-empty">검색 결과가 없습니다.<br>종목코드로 직접 추가해 보세요.</div>';
+            } else {
+                resultsEl.innerHTML = matches.slice(0, 15).map(m => `
+                    <div class="search-item" onclick='addCompany(${JSON.stringify(m)})'>
+                        <div>
+                            <div class="name">${esc(m.corp_name)}</div>
+                            <div class="code">${m.stock_code || m.corp_code} · ${MARKET_LABELS[m.corp_cls] || ''}</div>
+                        </div>
+                        <span class="add-icon">+</span>
+                    </div>`).join('');
+            }
+        } catch (e) {
+            resultsEl.innerHTML = `<div class="search-empty">검색 오류: ${esc(e.message)}</div>`;
+        }
+    }
+
+    // ── Watchlist management ──
+    function addCompany(company) {
+        if (watchlist.find(w => w.corp_code === company.corp_code)) return;
+        watchlist.push({
+            corp_code: company.corp_code,
+            corp_name: company.corp_name,
+            stock_code: company.stock_code || '',
+            corp_cls: company.corp_cls || ''
+        });
+        saveWatchlist();
+        renderWatchlist();
+        document.getElementById('searchInput').value = '';
+        document.getElementById('searchResults').classList.remove('show');
+        showToast('✅', `${company.corp_name} 추가됨`);
+        refreshNow();
+    }
+
+    function addManual() {
+        const code = document.getElementById('manualCode').value.trim();
+        const name = document.getElementById('manualName').value.trim();
+        if (!code || !name) { showToast('⚠️', '종목코드와 기업명을 모두 입력하세요.'); return; }
+        addCompany({ corp_code: code.padStart(8, '0'), corp_name: name, stock_code: code });
+        document.getElementById('manualCode').value = '';
+        document.getElementById('manualName').value = '';
+    }
+
+    function removeCompany(corpCode) {
+        const company = watchlist.find(w => w.corp_code === corpCode);
+        watchlist = watchlist.filter(w => w.corp_code !== corpCode);
+        saveWatchlist();
+        renderWatchlist();
+        if (company) showToast('🗑', `${company.corp_name} 제거됨`);
+        applyFilters();
+    }
+
+    function saveWatchlist() {
+        localStorage.setItem('dart_watchlist', JSON.stringify(watchlist));
+    }
+
+    function renderWatchlist() {
+        const el = document.getElementById('watchlist');
+        document.getElementById('watchCount').textContent = watchlist.length;
+        if (watchlist.length === 0) {
+            el.innerHTML = '<div class="watchlist-empty">기업을 검색하여 추가하세요</div>';
+            return;
+        }
+        el.innerHTML = watchlist.map(w => `
+            <div class="watchlist-item">
+                <div class="info">
+                    <div class="name">${esc(w.corp_name)}</div>
+                    <div class="meta">${w.stock_code || w.corp_code} · ${MARKET_LABELS[w.corp_cls] || ''}</div>
+                </div>
+                <button class="remove" onclick="removeCompany('${w.corp_code}')" title="제거">✕</button>
+            </div>`).join('');
+    }
+
+    // ── Fetch disclosures ──
+    async function fetchDisclosures() {
+        if (watchlist.length === 0) {
+            allDisclosures = [];
+            applyFilters();
+            return;
+        }
+
+        setStatus('loading');
+        try {
+            const endDe = kstDateStr(0);
+            const bgnDe = kstDateStr(-(dateRange - 1));
+            const watchCodes = new Set(watchlist.map(w => w.corp_code));
+            let results = [];
+
+            // Strategy: if few companies, fetch per company; otherwise fetch all and filter
+            if (watchlist.length <= 5) {
+                const promises = watchlist.map(w =>
+                    dartFetch('list.json', {
+                        corp_code: w.corp_code,
+                        bgn_de: bgnDe, end_de: endDe,
+                        page_count: '100', sort: 'date', sort_mth: 'desc'
+                    }).catch(() => ({ list: [] }))
+                );
+                const responses = await Promise.all(promises);
+                responses.forEach(data => {
+                    if (data.list) results.push(...data.list);
+                });
+            } else {
+                // Fetch all and filter
+                for (let page = 1; page <= 5; page++) {
+                    const data = await dartFetch('list.json', {
+                        bgn_de: bgnDe, end_de: endDe,
+                        page_no: String(page), page_count: '100',
+                        sort: 'date', sort_mth: 'desc'
+                    });
+                    if (data.list) {
+                        results.push(...data.list.filter(d => watchCodes.has(d.corp_code)));
+                        // Update company cache
+                        data.list.forEach(item => {
+                            companyCache.set(item.corp_code, {
+                                corp_name: item.corp_name,
+                                stock_code: item.stock_code || '',
+                                corp_cls: item.corp_cls || ''
+                            });
+                        });
+                    }
+                    if (!data.list || data.list.length < 100) break;
+                    if (results.length > 200) break;
+                }
+            }
+
+            // De-duplicate by rcept_no
+            const seen = new Set();
+            results = results.filter(d => {
+                if (seen.has(d.rcept_no)) return false;
+                seen.add(d.rcept_no);
+                return true;
+            });
+
+            // Sort by date desc, then rcept_no desc
+            results.sort((a, b) => {
+                if (a.rcept_dt !== b.rcept_dt) return b.rcept_dt.localeCompare(a.rcept_dt);
+                return b.rcept_no.localeCompare(a.rcept_no);
+            });
+
+            // Detect new disclosures
+            const newOnes = results.filter(d => !seenRceptNos.has(d.rcept_no));
+            if (!isFirstLoad && newOnes.length > 0) {
+                notifyNew(newOnes);
+            }
+
+            // Update seen set
+            results.forEach(d => seenRceptNos.add(d.rcept_no));
+            // Keep only last 2000 to prevent localStorage bloat
+            if (seenRceptNos.size > 2000) {
+                const arr = [...seenRceptNos];
+                seenRceptNos = new Set(arr.slice(arr.length - 1500));
+            }
+            localStorage.setItem('dart_seen', JSON.stringify([...seenRceptNos]));
+
+            allDisclosures = results;
+            isFirstLoad = false;
+            currentPage = 1;
+            applyFilters();
+            setStatus('active');
+            updateLastTime();
+        } catch (e) {
+            console.error(e);
+            setStatus('error');
+            showToast('❌', e.message);
+        }
+    }
+
+    // ── Filters & rendering ──
+    function applyFilters() {
+        const typeF = document.getElementById('typeFilter').value;
+        const marketF = document.getElementById('marketFilter').value;
+
+        filteredDisclosures = allDisclosures.filter(d => {
+            if (typeF && d.pblntf_ty !== typeF) return false;
+            if (marketF && d.corp_cls !== marketF) return false;
+            return true;
+        });
+
+        document.getElementById('filterCount').textContent =
+            `${filteredDisclosures.length}건`;
+        renderDisclosures();
+    }
+
+    function renderDisclosures() {
+        const el = document.getElementById('disclosureList');
+        const start = (currentPage - 1) * PAGE_SIZE;
+        const pageItems = filteredDisclosures.slice(start, start + PAGE_SIZE);
+
+        if (filteredDisclosures.length === 0) {
+            if (watchlist.length === 0) {
+                el.innerHTML = `<div class="empty-state"><div class="icon">📋</div>
+                    <p>왼쪽에서 관심 기업을 추가하면<br>공시 정보가 여기에 표시됩니다.</p></div>`;
+            } else {
+                el.innerHTML = `<div class="empty-state"><div class="icon">📭</div>
+                    <p>조회 기간 내 해당 조건의 공시가 없습니다.</p></div>`;
+            }
+            document.getElementById('pagination').innerHTML = '';
+            return;
+        }
+
+        el.innerHTML = pageItems.map(d => {
+            const isNew = !isFirstLoad && !seenRceptNos.has(d.rcept_no);
+            const dartUrl = `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`;
+            const typeCls = d.pblntf_ty ? `badge-${d.pblntf_ty}` : 'badge-E';
+            const typeLabel = getDisclosureTypeLabel(d);
+            return `
+            <div class="disclosure-card ${isNew ? 'is-new' : ''}"
+                 onclick="window.open('${dartUrl}','_blank')">
+                <div class="dc-top">
+                    <div class="dc-title">${esc(d.report_nm)}</div>
+                    <span class="dc-badge ${typeCls}">${typeLabel}</span>
+                    ${d.rm && d.rm.includes('유') ? '<span class="new-badge">NEW</span>' : ''}
+                </div>
+                <div class="dc-bottom">
+                    <span class="dc-company">${esc(d.corp_name)}</span>
+                    <div class="dc-meta">
+                        <span>${formatDate(d.rcept_dt)}</span>
+                        <span>${esc(d.flr_nm || '')}</span>
+                        <span>${MARKET_LABELS[d.corp_cls] || ''}</span>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+
+        renderPagination();
+    }
+
+    function getDisclosureTypeLabel(d) {
+        if (d.pblntf_ty && TYPE_LABELS[d.pblntf_ty]) return TYPE_LABELS[d.pblntf_ty];
+        const name = d.report_nm || '';
+        if (name.includes('사업보고서') || name.includes('분기보고서') || name.includes('반기보고서')) return '정기공시';
+        if (name.includes('주요사항')) return '주요사항';
+        return '공시';
+    }
+
+    function renderPagination() {
+        const totalPages = Math.ceil(filteredDisclosures.length / PAGE_SIZE);
+        if (totalPages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+        let html = '';
+        html += `<button class="btn btn-sm" ${currentPage<=1?'disabled':''} onclick="goPage(${currentPage-1})">◀</button>`;
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === currentPage) {
+                html += `<button class="btn btn-sm btn-accent">${i}</button>`;
+            } else if (Math.abs(i - currentPage) <= 2 || i === 1 || i === totalPages) {
+                html += `<button class="btn btn-sm" onclick="goPage(${i})">${i}</button>`;
+            } else if (Math.abs(i - currentPage) === 3) {
+                html += `<span style="color:var(--text-muted)">…</span>`;
+            }
+        }
+        html += `<button class="btn btn-sm" ${currentPage>=totalPages?'disabled':''} onclick="goPage(${currentPage+1})">▶</button>`;
+        document.getElementById('pagination').innerHTML = html;
+    }
+
+    function goPage(n) {
+        currentPage = n;
+        renderDisclosures();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ── Notifications ──
+    function notifyNew(newItems) {
+        const notifyEnabled = document.getElementById('notifyCheck')?.checked !== false;
+        const soundEnabled = document.getElementById('soundCheck')?.checked;
+
+        if (soundEnabled) playNotifSound();
+
+        newItems.slice(0, 3).forEach(d => {
+            showToast('📢', `${d.corp_name}: ${d.report_nm}`);
+        });
+        if (newItems.length > 3) {
+            showToast('📢', `외 ${newItems.length - 3}건의 새 공시`);
+        }
+
+        if (notifyEnabled && Notification.permission === 'granted') {
+            const body = newItems.slice(0, 3).map(d => `${d.corp_name}: ${d.report_nm}`).join('\n');
+            new Notification('DART 새 공시', {
+                body: body + (newItems.length > 3 ? `\n외 ${newItems.length-3}건` : ''),
+                icon: '📋'
+            });
+        }
+    }
+
+    function playNotifSound() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.frequency.value = 800;
+            gain.gain.value = 0.15;
+            osc.start(); osc.stop(ctx.currentTime + 0.15);
+            setTimeout(() => {
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.connect(gain2); gain2.connect(ctx.destination);
+                osc2.frequency.value = 1000;
+                gain2.gain.value = 0.15;
+                osc2.start(); osc2.stop(ctx.currentTime + 0.15);
+            }, 180);
+        } catch(e) {}
+    }
+
+    // ── Status & Toasts ──
+    function setStatus(state) {
+        const dot = document.getElementById('statusDot');
+        dot.className = state === 'loading' ? '' : state;
+        if (state === 'loading') {
+            dot.style.background = 'var(--warning)';
+            dot.style.boxShadow = '0 0 8px var(--warning)';
+        } else {
+            dot.style.background = '';
+            dot.style.boxShadow = '';
+        }
+    }
+
+    function updateLastTime() {
+        const now = new Date();
+        const h = String(now.getHours()).padStart(2,'0');
+        const m = String(now.getMinutes()).padStart(2,'0');
+        const s = String(now.getSeconds()).padStart(2,'0');
+        document.getElementById('lastUpdate').textContent = `마지막 갱신: ${h}:${m}:${s}`;
+    }
+
+    function showToast(icon, msg) {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML = `<span class="icon">${icon}</span><span class="msg">${esc(msg)}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; }, 3500);
+        setTimeout(() => toast.remove(), 4000);
+    }
+
+    // ── Settings ──
+    function openSettings() {
+        document.getElementById('apiKeyInput').value = API_KEY;
+        document.getElementById('intervalSelect').value = String(refreshInterval);
+        document.getElementById('dateRangeSelect').value = String(dateRange);
+        document.getElementById('settingsModal').classList.add('show');
+    }
+
+    function closeSettings() {
+        document.getElementById('settingsModal').classList.remove('show');
+    }
+
+    function saveSettings() {
+        API_KEY = document.getElementById('apiKeyInput').value.trim();
+        refreshInterval = parseInt(document.getElementById('intervalSelect').value);
+        dateRange = parseInt(document.getElementById('dateRangeSelect').value);
+
+        localStorage.setItem('dart_api_key', API_KEY);
+        localStorage.setItem('dart_interval', String(refreshInterval));
+        localStorage.setItem('dart_daterange', String(dateRange));
+
+        closeSettings();
+        setupTimer();
+        showToast('✅', '설정이 저장되었습니다.');
+        refreshNow();
+    }
+
+    // ── Timer ──
+    function setupTimer() {
+        if (timerId) clearInterval(timerId);
+        if (refreshInterval > 0) {
+            timerId = setInterval(fetchDisclosures, refreshInterval);
+        }
+    }
+
+    // ── Sidebar toggle ──
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('open');
+        document.getElementById('sidebarOverlay').classList.toggle('show');
+    }
+
+    // ── Refresh ──
+    function refreshNow() {
+        fetchDisclosures();
+    }
+
+    // ── Escape HTML ──
+    function esc(str) {
+        if (!str) return '';
+        const d = document.createElement('div');
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
+    // ── Request notification permission ──
+    async function requestNotifPermission() {
+        if ('Notification' in window && Notification.permission === 'default') {
+            await Notification.requestPermission();
+        }
+    }
+
+    // ── Close search dropdown on outside click ──
+    document.addEventListener('click', (e) => {
+        const box = document.querySelector('.search-box');
+        if (box && !box.contains(e.target)) {
+            document.getElementById('searchResults').classList.remove('show');
+        }
+    });
+
+    // ── Keyboard shortcut ──
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeSettings();
+            document.getElementById('searchResults').classList.remove('show');
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+            e.preventDefault();
+            refreshNow();
+        }
+    });
+
+    // ── Init ──
+    (async function init() {
+        renderWatchlist();
+        requestNotifPermission();
+
+        // 1) Vercel serverless proxy 감지
+        await detectVercelProxy();
+
+        // Vercel 프록시 사용 시 API 키 입력란에 안내 표시
+        if (useVercelProxy) {
+            const apiInput = document.getElementById('apiKeyInput');
+            apiInput.value = '(서버 환경변수로 관리 중)';
+            apiInput.disabled = true;
+            apiInput.style.opacity = '0.5';
+        }
+
+        // API 키도 없고 Vercel도 아니면 설정 안내
+        if (!useVercelProxy && !API_KEY && !IS_LOCAL) {
+            showToast('⚙️', 'DART API 키를 설정해주세요.');
+            openSettings();
+            return;
+        }
+
+        // 2) Initial load of company cache (background)
+        try {
+            const endDe = kstDateStr(0);
+            const bgnDe = kstDateStr(-30);
+            for (let page = 1; page <= 2; page++) {
+                const data = await dartFetch('list.json', {
+                    bgn_de: bgnDe, end_de: endDe,
+                    page_no: String(page), page_count: '100'
+                });
+                if (data.list) {
+                    data.list.forEach(item => {
+                        companyCache.set(item.corp_code, {
+                            corp_name: item.corp_name,
+                            stock_code: item.stock_code || '',
+                            corp_cls: item.corp_cls || ''
+                        });
+                    });
+                }
+                if (!data.list || data.list.length < 100) break;
+            }
+        } catch (e) {
+            console.warn('Company cache init failed:', e);
+        }
+
+        // 3) Fetch disclosures for watchlist
+        await fetchDisclosures();
+
+        // 4) Setup auto-refresh
+        setupTimer();
+    })();
+    </script>
+</body>
+</html>
