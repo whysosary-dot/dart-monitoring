@@ -4,15 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DART 실시간 공시 모니터</title>
-    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-    <link rel="apple-touch-icon" sizes="152x152" href="icon-152x152.png">
-    <link rel="apple-touch-icon" sizes="167x167" href="icon-167x167.png">
-    <link rel="apple-touch-icon" sizes="120x120" href="icon-120x120.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="icon-192x192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="icon-512x512.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="DART 공시">
     <style>
         :root {
             --bg-primary: #f5f7fa;
@@ -847,14 +838,24 @@
             return;
         }
 
+        const seenOnPage = new Set();
         el.innerHTML = pageItems.map(d => {
             const isNew = !isFirstLoad && !seenRceptNos.has(d.rcept_no);
             const dartUrl = `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`;
             const typeCls = d.pblntf_ty ? `badge-${d.pblntf_ty}` : 'badge-E';
             const typeLabel = getDisclosureTypeLabel(d);
+
+            // 같은 기업의 첫 번째 공시 → 네이버 금융 모바일, 나머지 → DART 공시
+            const isFirstForCorp = !seenOnPage.has(d.corp_code);
+            seenOnPage.add(d.corp_code);
+            const corpInfo = watchlist.find(w => w.corp_code === d.corp_code);
+            const stockCode = corpInfo?.stock_code;
+            const naverUrl = stockCode ? `https://m.stock.naver.com/domestic/stock/${stockCode}/total` : null;
+            const clickUrl = isFirstForCorp && naverUrl ? naverUrl : dartUrl;
+
             return `
             <div class="disclosure-card ${isNew ? 'is-new' : ''}"
-                 onclick="window.open('${dartUrl}','_blank')">
+                 onclick="window.open('${clickUrl}','_blank')">
                 <div class="dc-top">
                     <div class="dc-title">${esc(d.report_nm)}</div>
                     <span class="dc-badge ${typeCls}">${typeLabel}</span>
