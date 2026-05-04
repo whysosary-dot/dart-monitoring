@@ -838,20 +838,17 @@
             return;
         }
 
-        const seenOnPage = new Set();
         el.innerHTML = pageItems.map(d => {
             const isNew = !isFirstLoad && !seenRceptNos.has(d.rcept_no);
-            const dartUrl = `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`;
             const typeCls = d.pblntf_ty ? `badge-${d.pblntf_ty}` : 'badge-E';
             const typeLabel = getDisclosureTypeLabel(d);
 
-            // 같은 기업의 첫 번째 공시 → 네이버 금융 모바일, 나머지 → DART 공시
-            const isFirstForCorp = !seenOnPage.has(d.corp_code);
-            seenOnPage.add(d.corp_code);
+            // 어떤 공시를 눌러도 항상 네이버 금융 모바일(기업 페이지)로 이동
             const corpInfo = watchlist.find(w => w.corp_code === d.corp_code);
             const stockCode = corpInfo?.stock_code;
-            const naverUrl = stockCode ? `https://m.stock.naver.com/domestic/stock/${stockCode}/total` : null;
-            const clickUrl = isFirstForCorp && naverUrl ? naverUrl : dartUrl;
+            const clickUrl = stockCode
+                ? `https://m.stock.naver.com/domestic/stock/${stockCode}/total`
+                : `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`;
 
             return `
             <div class="disclosure-card ${isNew ? 'is-new' : ''}"
