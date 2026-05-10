@@ -1092,6 +1092,7 @@
     async function ghCommitAll(){
         const pat=getGhPat();
         if(!pat){showToast('🔑','GitHub PAT를 설정에서 입력하세요.');openSettings();setTimeout(()=>document.getElementById('ghPatInput')?.focus(),300);return;}
+        if(!confirm('관심기업 목록('+watchlist.length+'개)을 GitHub에 동기화할까요?'))return;
         const btn=document.getElementById('syncBtn');const orig=btn.textContent;btn.textContent='⏳';btn.disabled=true;
         try{
             const content=JSON.stringify(watchlist,null,2);
