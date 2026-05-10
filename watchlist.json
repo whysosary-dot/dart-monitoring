@@ -1,0 +1,92 @@
+[
+  {
+    "corp_code": "00808022",
+    "corp_name": "메지온",
+    "stock_code": "140410",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "00116949",
+    "corp_name": "DN오토모티브",
+    "stock_code": "007340",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "00628860",
+    "corp_name": "네오위즈",
+    "stock_code": "095660",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "00139719",
+    "corp_name": "와이지-원",
+    "stock_code": "019210",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "00126380",
+    "corp_name": "삼성전자",
+    "stock_code": "005930",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "00164779",
+    "corp_name": "SK하이닉스",
+    "stock_code": "000660",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "00164830",
+    "corp_name": "HD한국조선해양",
+    "stock_code": "009540",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "00361008",
+    "corp_name": "한화엔진",
+    "stock_code": "082740",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "01137383",
+    "corp_name": "카카오게임즈",
+    "stock_code": "293490",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "01152470",
+    "corp_name": "펄어비스",
+    "stock_code": "263750",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "00415868",
+    "corp_name": "펩트론",
+    "stock_code": "087010",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "01245062",
+    "corp_name": "코오롱티슈진",
+    "stock_code": "950160",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "01519790",
+    "corp_name": "엠앤씨솔루션",
+    "stock_code": "484870",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "00480783",
+    "corp_name": "상신이디피",
+    "stock_code": "091580",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "00157399",
+    "corp_name": "한솔테크닉스",
+    "stock_code": "004710",
+    "corp_cls": ""
+  }
+]
