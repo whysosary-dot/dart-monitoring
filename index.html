@@ -349,6 +349,7 @@
             <div id="statusDot"></div>
             <span id="lastUpdate">—</span>
             <button class="btn btn-sm" onclick="refreshNow()">↻ 새로고침</button>
+            <button class="btn btn-sm" onclick="ghCommitAll()" id="syncBtn" title="관심기업 동기화">☁️</button>
             <button class="btn btn-sm" onclick="openSettings()">⚙</button>
         </div>
     </header>
@@ -449,6 +450,12 @@
                     <input type="checkbox" id="soundCheck">
                     새 공시 알림 소리
                 </label>
+            </div>
+            <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+            <div class="form-group">
+                <label>GitHub 동기화 (PAT)</label>
+                <input id="ghPatInput" type="password" placeholder="ghp_... (repo 권한 필요)">
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">관심기업 목록을 다른 기기와 동기화합니다. 토큰은 이 기기에만 저장됩니다.</div>
             </div>
             <div class="modal-actions">
                 <button class="btn" onclick="closeSettings()">취소</button>
@@ -984,6 +991,7 @@
         document.getElementById('intervalSelect').value = String(refreshInterval);
         document.getElementById('dateRangeSelect').value = String(dateRange);
         document.getElementById('settingsModal').classList.add('show');
+        const pi = document.getElementById('ghPatInput'); if(pi) pi.value = localStorage.getItem('dart_gh_pat') || '';
     }
 
     function closeSettings() {
@@ -998,6 +1006,7 @@
         localStorage.setItem('dart_api_key', API_KEY);
         localStorage.setItem('dart_interval', String(refreshInterval));
         localStorage.setItem('dart_daterange', String(dateRange));
+        const ghPat = document.getElementById('ghPatInput')?.value?.trim(); if(ghPat) localStorage.setItem('dart_gh_pat', ghPat); else localStorage.removeItem('dart_gh_pat');
 
         closeSettings();
         setupTimer();
@@ -1059,11 +1068,62 @@
         }
     });
 
+
+
+    // ── GitHub Sync ──
+    const GH_OWNER='whysosary-dot',GH_REPO='dart-monitoring',GH_BRANCH='main',GH_FILE='watchlist.json';
+    function getGhPat(){return localStorage.getItem('dart_gh_pat')||'';}
+
+    async function ghApiGet(pat,path){
+        const r=await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${path}?ref=${GH_BRANCH}`,{
+            headers:{Authorization:`token ${pat}`,Accept:'application/vnd.github.v3+json'},signal:AbortSignal.timeout(10000)});
+        if(r.status===404)return null;if(!r.ok)throw new Error('GitHub GET '+r.status);return r.json();
+    }
+
+    async function ghApiPut(pat,path,str,sha,msg){
+        const b={message:msg,content:btoa(unescape(encodeURIComponent(str))),branch:GH_BRANCH};
+        if(sha)b.sha=sha;
+        const r=await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${path}`,{
+            method:'PUT',headers:{Authorization:`token ${pat}`,Accept:'application/vnd.github.v3+json','Content-Type':'application/json'},
+            body:JSON.stringify(b),signal:AbortSignal.timeout(15000)});
+        if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.message||'GitHub PUT '+r.status);}return r.json();
+    }
+
+    async function ghCommitAll(){
+        const pat=getGhPat();
+        if(!pat){showToast('🔑','GitHub PAT를 설정에서 입력하세요.');openSettings();setTimeout(()=>document.getElementById('ghPatInput')?.focus(),300);return;}
+        const btn=document.getElementById('syncBtn');const orig=btn.textContent;btn.textContent='⏳';btn.disabled=true;
+        try{
+            const content=JSON.stringify(watchlist,null,2);
+            const existing=await ghApiGet(pat,GH_FILE);const sha=existing?existing.sha:null;
+            const now=new Date();
+            const ts=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+            await ghApiPut(pat,GH_FILE,content,sha,'sync watchlist: '+watchlist.length+'개 기업 ('+ts+')');
+            showToast('☁️','동기화 완료 — '+watchlist.length+'개 기업');
+        }catch(e){console.error('GitHub sync:',e);showToast('❌','동기화 실패: '+e.message);}
+        finally{btn.textContent=orig;btn.disabled=false;}
+    }
+
+    async function ghPull(){
+        const pat=getGhPat();if(!pat)return;
+        try{
+            const existing=await ghApiGet(pat,GH_FILE);if(!existing)return;
+            const decoded=decodeURIComponent(escape(atob(existing.content.replace(/\n/g,''))));
+            const remote=JSON.parse(decoded);if(!Array.isArray(remote)||remote.length===0)return;
+            const localCodes=new Set(watchlist.map(w=>w.corp_code));let added=0;
+            remote.forEach(r=>{if(!localCodes.has(r.corp_code)){watchlist.push(r);added++;}});
+            if(added>0){saveWatchlist();renderWatchlist();showToast('☁️','원격에서 '+added+'개 기업 동기화');}
+        }catch(e){console.warn('ghPull:',e.message);}
+    }
+
     // ── Init ──
     (async function init() {
         renderWatchlist();
         updateCompanyFilter();
         requestNotifPermission();
+
+        // 0) GitHub에서 watchlist pull
+        await ghPull();
 
         // 1) Vercel serverless proxy 감지
         await detectVercelProxy();
