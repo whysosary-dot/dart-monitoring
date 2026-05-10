@@ -853,9 +853,7 @@
             // 어떤 공시를 눌러도 항상 네이버 금융 모바일(기업 페이지)로 이동
             const corpInfo = watchlist.find(w => w.corp_code === d.corp_code);
             const stockCode = corpInfo?.stock_code;
-            const clickUrl = stockCode
-                ? `https://m.stock.naver.com/domestic/stock/${stockCode}/total`
-                : `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`;
+            const clickUrl = `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`;
 
             return `
             <div class="disclosure-card ${isNew ? 'is-new' : ''}"
