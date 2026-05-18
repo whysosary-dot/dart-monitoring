@@ -6,15 +6,15 @@
     "corp_cls": ""
   },
   {
-    "corp_code": "00628860",
-    "corp_name": "네오위즈",
-    "stock_code": "095660",
-    "corp_cls": ""
-  },
-  {
     "corp_code": "00116949",
     "corp_name": "DN오토모티브",
     "stock_code": "007340",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "00628860",
+    "corp_name": "네오위즈",
+    "stock_code": "095660",
     "corp_cls": ""
   },
   {
@@ -27,12 +27,6 @@
     "corp_code": "00164830",
     "corp_name": "HD한국조선해양",
     "stock_code": "009540",
-    "corp_cls": ""
-  },
-  {
-    "corp_code": "00480783",
-    "corp_name": "상신이디피",
-    "stock_code": "091580",
     "corp_cls": ""
   },
   {
@@ -72,9 +66,21 @@
     "corp_cls": ""
   },
   {
+    "corp_code": "00480783",
+    "corp_name": "상신이디피",
+    "stock_code": "091580",
+    "corp_cls": ""
+  },
+  {
     "corp_code": "00157399",
     "corp_name": "한솔테크닉스",
     "stock_code": "004710",
+    "corp_cls": ""
+  },
+  {
+    "corp_code": "00447487",
+    "corp_name": "제주반도체",
+    "stock_code": "080220",
     "corp_cls": ""
   }
 ]
