@@ -1070,7 +1070,7 @@
 
     // ── GitHub Sync ──
     const GH_OWNER='whysosary-dot',GH_REPO='dart-monitoring',GH_BRANCH='main',GH_FILE='watchlist.json';
-    function getGhPat(){return localStorage.getItem('dart_gh_pat')||'';}
+    function getGhPat(){return localStorage.getItem('dart_gh_pat')||localStorage.getItem('sv_github_pat')||'';}
 
     async function ghApiGet(pat,path){
         const r=await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${path}?ref=${GH_BRANCH}`,{
@@ -1087,21 +1087,43 @@
         if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.message||'GitHub PUT '+r.status);}return r.json();
     }
 
+    async function ghCommitCore(){
+        const pat=getGhPat();
+        if(!pat)throw new Error('PAT 미설정');
+        const content=JSON.stringify(watchlist,null,2);
+        const existing=await ghApiGet(pat,GH_FILE);const sha=existing?existing.sha:null;
+        const now=new Date();
+        const ts=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+        await ghApiPut(pat,GH_FILE,content,sha,'sync watchlist: '+watchlist.length+'개 기업 ('+ts+')');
+    }
+
     async function ghCommitAll(){
         const pat=getGhPat();
         if(!pat){showToast('🔑','GitHub PAT를 설정에서 입력하세요.');openSettings();setTimeout(()=>document.getElementById('ghPatInput')?.focus(),300);return;}
         if(!confirm('관심기업 목록('+watchlist.length+'개)을 GitHub에 동기화할까요?'))return;
         const btn=document.getElementById('syncBtn');const orig=btn.textContent;btn.textContent='⏳';btn.disabled=true;
         try{
-            const content=JSON.stringify(watchlist,null,2);
-            const existing=await ghApiGet(pat,GH_FILE);const sha=existing?existing.sha:null;
-            const now=new Date();
-            const ts=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-            await ghApiPut(pat,GH_FILE,content,sha,'sync watchlist: '+watchlist.length+'개 기업 ('+ts+')');
+            await ghCommitCore();
             showToast('☁️','동기화 완료 — '+watchlist.length+'개 기업');
         }catch(e){console.error('GitHub sync:',e);showToast('❌','동기화 실패: '+e.message);}
         finally{btn.textContent=orig;btn.disabled=false;}
     }
+
+    /* ── Stock Valuation 대시보드 통합 커밋 (iframe 내장 시) ── */
+    (function(){
+        if (window.self === window.top) return;
+        // 대시보드 탭 안에서는 자체 동기화 버튼 숨김 (통합 버튼으로 일원화)
+        const _b=document.getElementById('syncBtn'); if(_b) _b.style.display='none';
+        window.addEventListener('message', async function(e){
+            if (e.origin !== 'https://whysosary-dot.github.io' || !e.data || !e.data.type) return;
+            if (e.data.type === 'sv-ping'){ e.source.postMessage({type:'sv-pong', repo:'dart-monitoring'}, e.origin); return; }
+            if (e.data.type !== 'sv-commit') return;
+            let ok=true, msg='커밋 완료';
+            try { await ghCommitCore(); }
+            catch(err){ ok=false; msg=err.message||String(err); }
+            e.source.postMessage({type:'sv-commit-result', repo:'dart-monitoring', ok:ok, msg:msg}, e.origin);
+        });
+    })();
 
     async function ghPull(){
         const pat=getGhPat();if(!pat)return;
