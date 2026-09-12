@@ -216,6 +216,7 @@
         }
         .dc-company { font-size:13px; color:var(--accent); font-weight:500; }
         .dc-meta { font-size:12px; color:var(--text-muted); display:flex; gap:10px; }
+        .dc-naver { display:inline-block; background:#03c75a; color:#fff; font-weight:800; font-size:10.5px; width:16px; height:16px; line-height:16px; text-align:center; border-radius:4px; text-decoration:none; }
         .new-badge {
             background:var(--accent); color:#fff; font-size:10px; font-weight:700;
             padding:2px 6px; border-radius:4px; animation:pulse 2s infinite;
@@ -901,7 +902,13 @@
             // 어떤 공시를 눌러도 항상 네이버 금융 모바일(기업 페이지)로 이동
             const corpInfo = watchlist.find(w => w.corp_code === d.corp_code);
             const stockCode = corpInfo?.stock_code;
-            const clickUrl = d.url ? d.url : `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`;
+            // 국내: 모바일이면 DART 모바일 뷰어(PC 뷰어는 아이폰 팝업에서 '네트워크 유실' 오류가 남), PC 는 기존 뷰어
+            const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+            const clickUrl = d.url ? d.url : (isMobile
+                ? `https://m.dart.fss.or.kr/html_mdart/MD1007.html?rcpNo=${d.rcept_no}`
+                : `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`);
+            // 예비 경로: 네이버 종목 공시 페이지 (아이폰에서 항상 열림)
+            const naverUrl = (!d.url && stockCode) ? `https://m.stock.naver.com/domestic/stock/${stockCode}/disclosure` : '';
 
             return `
             <div class="disclosure-card ${isNew ? 'is-new' : ''}"
@@ -917,6 +924,7 @@
                         <span>${formatDate(d.rcept_dt)}</span>
                         <span>${esc(d.flr_nm || '')}</span>
                         <span>${MARKET_LABELS[d.corp_cls] || ''}</span>
+                        ${naverUrl ? `<a class="dc-naver" href="${naverUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="네이버 종목 공시 페이지 (DART 뷰어가 안 열릴 때)">N</a>` : ''}
                     </div>
                 </div>
             </div>`;
