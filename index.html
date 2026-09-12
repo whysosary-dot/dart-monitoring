@@ -830,7 +830,13 @@
         const m = document.querySelector('main'); if (m) m.scrollTop = 0;
         document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
         window.scrollTo(0, 0);
-        if (window.innerWidth < 900) document.getElementById('disclosureList')?.scrollIntoView({ block: 'start' });
+        // 필터 바부터 보이도록 (헤더 높이만큼 여유)
+        const fb = document.querySelector('.filter-bar');
+        if (fb) {
+            const hh = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-h')) || 56;
+            const y = fb.getBoundingClientRect().top + (window.pageYOffset || 0) - hh - 8;
+            window.scrollTo(0, Math.max(0, y));
+        }
     }
 
     // ── Fetch disclosures ──
