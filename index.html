@@ -424,7 +424,15 @@
         <div class="modal">
             <h2>⚙ 설정</h2>
             <div class="form-group">
-                <label>DART API 키</label>
+                <label>국내 공시 실시간 프록시 URL (Vercel)</label>
+                <input id="proxyUrlInput" type="text" placeholder="https://프로젝트명.vercel.app/api/dart">
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;line-height:1.5">
+                    설정하면 국내 공시는 DART API 를 실시간으로 직접 조회합니다(토큰 소모 0). 비우면 맥 수집본(data/disclosures.json)을 씁니다.<br>
+                    미국·일본 공시는 항상 수집본에서 옵니다.
+                </div>
+            </div>
+            <div class="form-group">
+                <label>DART API 키 <span style="font-weight:400;color:var(--text-muted)">(프록시·수집본 사용 시 불필요)</span></label>
                 <input id="apiKeyInput" type="text" placeholder="API 키를 입력하세요">
             </div>
             <div class="form-group">
@@ -528,6 +536,7 @@
     // ── 0) 정적 수집 데이터 — 맥 스케줄(dart_collect.py)이 data/disclosures.json 으로 푸시 ──
     //    GitHub Pages 는 서버가 없어 DART 를 직접 못 부르고(CORS) 공개 프록시는 죽어서, 이 경로가 기본이다.
     let STATIC_DATA = null, STATIC_TRIED = false;
+    let PROXY_URL = (localStorage.getItem('dart_proxy_url') || '').trim().replace(/\/+$/, '');
     function _resetStaticCache() { STATIC_TRIED = false; STATIC_DATA = null; }
     async function loadStaticData() {
         if (STATIC_TRIED) return STATIC_DATA;
@@ -541,7 +550,7 @@
                 if (gen && el) {
                     const mm = String(gen.getMonth()+1).padStart(2,'0'), dd = String(gen.getDate()).padStart(2,'0');
                     const hh = String(gen.getHours()).padStart(2,'0'), mi = String(gen.getMinutes()).padStart(2,'0');
-                    el.textContent = `수집 ${mm}/${dd} ${hh}:${mi}`;
+                    el.textContent = (PROXY_URL ? `국내 실시간 · 해외 수집 ${mm}/${dd} ${hh}:${mi}` : `수집 ${mm}/${dd} ${hh}:${mi}`);
                     el.title = '맥에서 자동 수집한 시각 (장중 매시간)';
                 }
                 if (Array.isArray(STATIC_DATA.errors) && STATIC_DATA.errors.length) console.warn('수집 경고:', STATIC_DATA.errors);
@@ -550,6 +559,20 @@
         return STATIC_DATA;
     }
     async function dartFetch(endpoint, params = {}) {
+        const isForeign = /^(US|JP):/.test(String(params.corp_code || ''));
+        // 국내 + 프록시 설정됨 → DART API 실시간 (Vercel 서버리스가 키를 들고 있음)
+        if (PROXY_URL && !isForeign && endpoint !== 'corpCode.xml') {
+            try {
+                const sp = new URLSearchParams({ endpoint, ...params });
+                const res = await fetch(`${PROXY_URL}?${sp.toString()}`, { signal: AbortSignal.timeout(12000) });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === '000') return data;
+                    if (data.status === '013') return { ...data, list: [] };
+                    console.warn('프록시 DART 응답:', data.status, data.message);
+                }
+            } catch (e) { console.warn('프록시 실패 → 수집본으로 폴백:', e.message); }
+        }
         if (endpoint === 'list.json') {
             const sd = await loadStaticData();
             if (sd && Array.isArray(sd.items)) {
@@ -1044,6 +1067,7 @@
     // ── Settings ──
     function openSettings() {
         document.getElementById('apiKeyInput').value = API_KEY;
+        const px = document.getElementById('proxyUrlInput'); if (px) px.value = PROXY_URL;
         document.getElementById('intervalSelect').value = String(refreshInterval);
         document.getElementById('dateRangeSelect').value = String(dateRange);
         document.getElementById('settingsModal').classList.add('show');
@@ -1060,6 +1084,8 @@
         dateRange = parseInt(document.getElementById('dateRangeSelect').value);
 
         localStorage.setItem('dart_api_key', API_KEY);
+        PROXY_URL = (document.getElementById('proxyUrlInput')?.value || '').trim().replace(/\/+$/, '');
+        if (PROXY_URL) localStorage.setItem('dart_proxy_url', PROXY_URL); else localStorage.removeItem('dart_proxy_url');
         localStorage.setItem('dart_interval', String(refreshInterval));
         localStorage.setItem('dart_daterange', String(dateRange));
         const ghPat = document.getElementById('ghPatInput')?.value?.trim(); if(ghPat) localStorage.setItem('dart_gh_pat', ghPat); else localStorage.removeItem('dart_gh_pat');
@@ -1219,7 +1245,7 @@
         // 정적 수집 데이터가 있으면 API 키 없이도 동작 (맥 스케줄 수집 → data/disclosures.json)
         const staticOk = !!(await loadStaticData());
         // API 키도 없고 Vercel도 아니고 정적 데이터도 없으면 설정 안내
-        if (!useVercelProxy && !API_KEY && !IS_LOCAL && !staticOk) {
+        if (!useVercelProxy && !API_KEY && !IS_LOCAL && !staticOk && !PROXY_URL) {
             showToast('⚙️', 'DART API 키를 설정해주세요.');
             openSettings();
             return;
