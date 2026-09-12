@@ -1206,8 +1206,10 @@
             apiInput.style.opacity = '0.5';
         }
 
-        // API 키도 없고 Vercel도 아니면 설정 안내
-        if (!useVercelProxy && !API_KEY && !IS_LOCAL) {
+        // 정적 수집 데이터가 있으면 API 키 없이도 동작 (맥 스케줄 수집 → data/disclosures.json)
+        const staticOk = !!(await loadStaticData());
+        // API 키도 없고 Vercel도 아니고 정적 데이터도 없으면 설정 안내
+        if (!useVercelProxy && !API_KEY && !IS_LOCAL && !staticOk) {
             showToast('⚙️', 'DART API 키를 설정해주세요.');
             openSettings();
             return;
