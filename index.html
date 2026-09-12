@@ -155,7 +155,9 @@
             padding:10px 12px; background:var(--bg-card); border-radius:8px;
             margin-bottom:6px; border:1px solid transparent; transition:all 0.2s;
         }
-        .watchlist-item:hover { border-color:var(--border); }
+        .watchlist-item:hover { border-color:var(--border); cursor:pointer; }
+        .watchlist-item.is-selected { border-color:var(--accent, #4f8cff); background:rgba(79,140,255,.08); }
+        .watchlist-item.is-selected .info .name { color:var(--accent, #4f8cff); font-weight:700; }
         .watchlist-item .info .name { font-size:14px; font-weight:500; }
         .watchlist-item .info .meta {
             font-size:11px; color:var(--text-muted); margin-top:2px;
@@ -785,11 +787,16 @@
         updateCompanyFilter();
     }
 
+    // 관심기업 가나다(→ 영문·숫자) 정렬 — 원본 배열은 건드리지 않음
+    function sortedWatchlist() {
+        return [...watchlist].sort((a, b) => String(a.corp_name || '').localeCompare(String(b.corp_name || ''), 'ko'));
+    }
+
     function updateCompanyFilter() {
         const sel = document.getElementById('companyFilter');
         const current = sel.value;
         sel.innerHTML = '<option value="">전체 종목</option>';
-        watchlist.forEach(w => {
+        sortedWatchlist().forEach(w => {
             sel.innerHTML += `<option value="${w.corp_code}">${w.corp_name}</option>`;
         });
         sel.value = current;
@@ -802,14 +809,25 @@
             el.innerHTML = '<div class="watchlist-empty">기업을 검색하여 추가하세요</div>';
             return;
         }
-        el.innerHTML = watchlist.map(w => `
-            <div class="watchlist-item">
+        const selected = document.getElementById('companyFilter')?.value || '';
+        el.innerHTML = sortedWatchlist().map(w => `
+            <div class="watchlist-item ${selected === String(w.corp_code) ? 'is-selected' : ''}" onclick="filterByCompany('${w.corp_code}')" title="클릭하면 이 기업 공시만 표시 (다시 클릭하면 해제)">
                 <div class="info">
                     <div class="name">${esc(w.corp_name)}</div>
                     <div class="meta">${w.stock_code || w.corp_code} · ${MARKET_LABELS[w.corp_cls] || (String(w.corp_code).startsWith('US:') ? '미국' : String(w.corp_code).startsWith('JP:') ? '일본' : '')}</div>
                 </div>
-                <button class="remove" onclick="removeCompany('${w.corp_code}')" title="제거">✕</button>
+                <button class="remove" onclick="event.stopPropagation(); removeCompany('${w.corp_code}')" title="제거">✕</button>
             </div>`).join('');
+    }
+
+    // 왼쪽 관심기업 클릭 → 해당 기업으로 공시 필터 (토글)
+    function filterByCompany(code) {
+        const sel = document.getElementById('companyFilter');
+        sel.value = (sel.value === String(code)) ? '' : String(code);
+        applyFilters();
+        renderWatchlist();
+        // 모바일(세로 배치)에서는 공시 목록으로 스크롤
+        if (window.innerWidth < 900) document.getElementById('disclosureList')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     // ── Fetch disclosures ──
