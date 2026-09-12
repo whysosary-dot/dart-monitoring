@@ -927,11 +927,8 @@
             // 어떤 공시를 눌러도 항상 네이버 금융 모바일(기업 페이지)로 이동
             const corpInfo = watchlist.find(w => w.corp_code === d.corp_code);
             const stockCode = corpInfo?.stock_code;
-            // 국내: 모바일이면 DART 모바일 뷰어(PC 뷰어는 아이폰 팝업에서 '네트워크 유실' 오류가 남), PC 는 기존 뷰어
-            const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
-            const clickUrl = d.url ? d.url : (isMobile
-                ? `https://m.dart.fss.or.kr/html_mdart/MD1007.html?rcpNo=${d.rcept_no}`
-                : `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`);
+            // 국내: DART 정식 뷰어 (모바일 접속 시 DART 가 자체적으로 모바일 화면으로 넘김)
+            const clickUrl = d.url ? d.url : `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`;
             // 예비 경로: 네이버 종목 공시 페이지 (아이폰에서 항상 열림)
             const naverUrl = (!d.url && stockCode) ? `https://m.stock.naver.com/domestic/stock/${stockCode}/disclosure` : '';
 
