@@ -826,8 +826,11 @@
         sel.value = (sel.value === String(code)) ? '' : String(code);
         applyFilters();
         renderWatchlist();
-        // 모바일(세로 배치)에서는 공시 목록으로 스크롤
-        if (window.innerWidth < 900) document.getElementById('disclosureList')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // 공시 목록 맨 위로 (페이지·main·iframe 어느 쪽이 스크롤 주체든 모두 초기화)
+        const m = document.querySelector('main'); if (m) m.scrollTop = 0;
+        document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
+        window.scrollTo(0, 0);
+        if (window.innerWidth < 900) document.getElementById('disclosureList')?.scrollIntoView({ block: 'start' });
     }
 
     // ── Fetch disclosures ──
