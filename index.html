@@ -216,6 +216,7 @@
         }
         .dc-company { font-size:13px; color:var(--accent); font-weight:500; }
         .dc-meta { font-size:12px; color:var(--text-muted); display:flex; gap:10px; }
+        a.dc-company { color:inherit; text-decoration:underline dotted; text-underline-offset:2px; }
         .dc-naver { display:inline-block; background:#03c75a; color:#fff; font-weight:800; font-size:10.5px; width:16px; height:16px; line-height:16px; text-align:center; border-radius:4px; text-decoration:none; }
         .new-badge {
             background:var(--accent); color:#fff; font-size:10px; font-weight:700;
@@ -927,9 +928,9 @@
             // 어떤 공시를 눌러도 항상 네이버 금융 모바일(기업 페이지)로 이동
             const corpInfo = watchlist.find(w => w.corp_code === d.corp_code);
             const stockCode = corpInfo?.stock_code;
-            // 국내: DART 기업별 공시검색 페이지 (예전부터 잘 열리던 주소 형식)
-            const clickUrl = d.url ? d.url
-                : `https://dart.fss.or.kr/dsab007/main.do?autoSearch=Y&option=corp&textCrpNm=${encodeURIComponent(d.corp_name || '')}`;
+            // 국내: 카드 클릭 = 해당 공시 원문(dsaf001 rcpNo), 회사명 클릭 = 기업별 공시검색(dsab007)
+            const clickUrl = d.url ? d.url : `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`;
+            const corpUrl  = d.url ? '' : `https://dart.fss.or.kr/dsab007/main.do?autoSearch=Y&option=corp&textCrpNm=${encodeURIComponent(d.corp_name || '')}`;
             // 예비 경로: 네이버 종목 공시 페이지 (아이폰에서 항상 열림)
             const naverUrl = (!d.url && stockCode) ? `https://m.stock.naver.com/domestic/stock/${stockCode}/disclosure` : '';
 
@@ -942,7 +943,7 @@
                     ${d.rm && d.rm.includes('유') ? '<span class="new-badge">NEW</span>' : ''}
                 </div>
                 <div class="dc-bottom">
-                    <span class="dc-company">${esc(d.corp_name)}</span>
+                    ${corpUrl ? `<a class="dc-company" href="${corpUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="DART 기업별 공시검색">${esc(d.corp_name)}</a>` : `<span class="dc-company">${esc(d.corp_name)}</span>`}
                     <div class="dc-meta">
                         <span>${formatDate(d.rcept_dt)}</span>
                         <span>${esc(d.flr_nm || '')}</span>
