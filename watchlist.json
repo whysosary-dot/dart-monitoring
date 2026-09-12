@@ -82,5 +82,11 @@
     "corp_name": "제주반도체",
     "stock_code": "080220",
     "corp_cls": ""
+  },
+  {
+    "corp_code": "US:NVDA",
+    "corp_name": "NVIDIA",
+    "stock_code": "NVDA",
+    "corp_cls": "US"
   }
 ]
