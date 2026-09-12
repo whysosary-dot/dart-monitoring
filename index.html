@@ -235,6 +235,8 @@
         .badge-H { background:#fff7ed; color:#ea580c; }
         .badge-I { background:#eff6ff; color:#2563eb; }
         .badge-J { background:#fdf4ff; color:#a855f7; }
+        .badge-US { background:#eef2ff; color:#4338ca; }
+        .badge-JP { background:#fff1f2; color:#be123c; }
         .badge-market-Y { border-left:3px solid var(--blue); }
         .badge-market-K { border-left:3px solid var(--orange); }
 
@@ -366,7 +368,7 @@
             <details class="manual-add">
                 <summary>종목코드로 직접 추가</summary>
                 <div class="fields">
-                    <input id="manualCode" placeholder="종목코드 (예: 005930)">
+                    <input id="manualCode" placeholder="종목코드 (005930 · US:NVDA · JP:6524)">
                     <input id="manualName" placeholder="기업명">
                     <button class="btn btn-accent btn-sm" onclick="addManual()">추가</button>
                 </div>
@@ -392,6 +394,8 @@
                     <option value="H">자산유동화</option>
                     <option value="I">거래소공시</option>
                     <option value="J">공정위공시</option>
+                    <option value="US">🇺🇸 미국 SEC</option>
+                    <option value="JP">🇯🇵 일본 TDnet</option>
                 </select>
                 <select id="marketFilter" onchange="applyFilters()">
                     <option value="">전체 시장</option>
@@ -492,9 +496,10 @@
     const TYPE_LABELS = {
         A:'정기공시', B:'주요사항보고', C:'발행공시', D:'지분공시',
         E:'기타공시', F:'외부감사관련', G:'펀드공시', H:'자산유동화',
-        I:'거래소공시', J:'공정위공시'
+        I:'거래소공시', J:'공정위공시',
+        US:'미국 SEC', JP:'일본 TDnet'
     };
-    const MARKET_LABELS = { Y:'유가', K:'코스닥', N:'코넥스', E:'기타' };
+    const MARKET_LABELS = { Y:'유가', K:'코스닥', N:'코넥스', E:'기타', US:'미국', JP:'일본' };
 
     // ── CORS Fetch ──
     const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -517,7 +522,41 @@
         return false;
     }
 
+    // ── 0) 정적 수집 데이터 — 맥 스케줄(dart_collect.py)이 data/disclosures.json 으로 푸시 ──
+    //    GitHub Pages 는 서버가 없어 DART 를 직접 못 부르고(CORS) 공개 프록시는 죽어서, 이 경로가 기본이다.
+    let STATIC_DATA = null, STATIC_TRIED = false;
+    function _resetStaticCache() { STATIC_TRIED = false; STATIC_DATA = null; }
+    async function loadStaticData() {
+        if (STATIC_TRIED) return STATIC_DATA;
+        STATIC_TRIED = true;
+        try {
+            const r = await fetch(`data/disclosures.json?v=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+            if (r.ok) {
+                STATIC_DATA = await r.json();
+                const gen = STATIC_DATA.generated_at ? new Date(STATIC_DATA.generated_at) : null;
+                const el = document.getElementById('lastUpdate');
+                if (gen && el) {
+                    const mm = String(gen.getMonth()+1).padStart(2,'0'), dd = String(gen.getDate()).padStart(2,'0');
+                    const hh = String(gen.getHours()).padStart(2,'0'), mi = String(gen.getMinutes()).padStart(2,'0');
+                    el.textContent = `수집 ${mm}/${dd} ${hh}:${mi}`;
+                    el.title = '맥에서 자동 수집한 시각 (장중 매시간)';
+                }
+                if (Array.isArray(STATIC_DATA.errors) && STATIC_DATA.errors.length) console.warn('수집 경고:', STATIC_DATA.errors);
+            }
+        } catch (e) { console.warn('정적 데이터 없음:', e.message); }
+        return STATIC_DATA;
+    }
     async function dartFetch(endpoint, params = {}) {
+        if (endpoint === 'list.json') {
+            const sd = await loadStaticData();
+            if (sd && Array.isArray(sd.items)) {
+                const list = sd.items.filter(d =>
+                    (!params.corp_code || d.corp_code === params.corp_code) &&
+                    (!params.bgn_de || d.rcept_dt >= params.bgn_de) &&
+                    (!params.end_de || d.rcept_dt <= params.end_de));
+                return { status: '000', list };
+            }
+        }
         // 1) Vercel serverless proxy (API 키가 서버에 있음)
         if (useVercelProxy) {
             try {
@@ -690,7 +729,16 @@
     function addManual() {
         const code = document.getElementById('manualCode').value.trim();
         const name = document.getElementById('manualName').value.trim();
-        if (!code || !name) { showToast('⚠️', '종목코드와 기업명을 모두 입력하세요.'); return; }
+        // 해외: "US:NVDA" / "JP:6524" 형식 (기업명 비워도 됨 — 공시 데이터에서 실제 사명이 채워짐)
+        const fm = code.toUpperCase().match(/^(US|JP):\s*([A-Z0-9.\-]{1,10})$/);
+        if (fm) {
+            const cc = `${fm[1]}:${fm[2]}`;
+            addCompany({ corp_code: cc, corp_name: name || fm[2], stock_code: fm[2], corp_cls: fm[1] });
+            document.getElementById('manualCode').value = '';
+            document.getElementById('manualName').value = '';
+            return;
+        }
+        if (!code || !name) { showToast('⚠️', '종목코드와 기업명을 모두 입력하세요. (해외: US:NVDA, JP:6524)'); return; }
         addCompany({ corp_code: code.padStart(8, '0'), corp_name: name, stock_code: code });
         document.getElementById('manualCode').value = '';
         document.getElementById('manualName').value = '';
@@ -731,7 +779,7 @@
             <div class="watchlist-item">
                 <div class="info">
                     <div class="name">${esc(w.corp_name)}</div>
-                    <div class="meta">${w.stock_code || w.corp_code} · ${MARKET_LABELS[w.corp_cls] || ''}</div>
+                    <div class="meta">${w.stock_code || w.corp_code} · ${MARKET_LABELS[w.corp_cls] || (String(w.corp_code).startsWith('US:') ? '미국' : String(w.corp_code).startsWith('JP:') ? '일본' : '')}</div>
                 </div>
                 <button class="remove" onclick="removeCompany('${w.corp_code}')" title="제거">✕</button>
             </div>`).join('');
@@ -853,7 +901,7 @@
             // 어떤 공시를 눌러도 항상 네이버 금융 모바일(기업 페이지)로 이동
             const corpInfo = watchlist.find(w => w.corp_code === d.corp_code);
             const stockCode = corpInfo?.stock_code;
-            const clickUrl = `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`;
+            const clickUrl = d.url ? d.url : `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`;
 
             return `
             <div class="disclosure-card ${isNew ? 'is-new' : ''}"
@@ -1028,6 +1076,7 @@
 
     // ── Refresh ──
     function refreshNow() {
+        _resetStaticCache();
         fetchDisclosures();
     }
 
