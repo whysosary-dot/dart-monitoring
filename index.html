@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<link rel="stylesheet" href="https://whysosary-dot.github.io/stock-valuation/theme.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DART 실시간 공시 모니터</title>
@@ -344,6 +345,10 @@
         ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
         ::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
     </style>
+<style id="sv-theme-override">
+/* ── SV 공통 테마 오버라이드 (대시보드와 색·폰트 통일) ── */
+body{background:var(--bg) !important;color:var(--text) !important;font-family:var(--font) !important;letter-spacing:-.01em}
+:root{--bg-primary:var(--bg);--bg-secondary:var(--panel);--bg-card:var(--panel);--bg-card-hover:var(--panel-2);--bg-input:var(--panel-2);--accent:#3056f0;--accent-dim:var(--accent-soft);--text-primary:var(--text);--text-secondary:var(--text-dim);--border:#e5e9f1;--danger:var(--up)}</style>
 </head>
 <body>
     <header>
